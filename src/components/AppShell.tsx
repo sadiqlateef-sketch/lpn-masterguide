@@ -14,7 +14,13 @@ import { ensureSession, isConfigured } from "@/lib/client/supabase";
 import { LessonPlayer } from "./screens/LessonPlayer";
 import { MagicAddSheet, type MagicMode } from "./screens/MagicAddSheet";
 import { PathMap } from "./screens/PathMap";
+import { PlannerSheet } from "./screens/PlannerSheet";
 import { ReadinessRings } from "./screens/ReadinessRings";
+import { ReviewSheet } from "./screens/ReviewSheet";
+import { TodayCard } from "./screens/TodayCard";
+
+// Time in one lesson counts toward today's study minutes, up to this much (a lesson left open overnight isn't study).
+const MAX_LESSON_MINUTES = 90;
 
 type Boot = { state: "loading" } | { state: "ready" } | { state: "error"; message: string } | { state: "unconfigured" };
 
@@ -27,6 +33,9 @@ export function AppShell() {
   const [progressKey, setProgressKey] = useState(0);
   const [magic, setMagic] = useState<{ open: boolean; mode: MagicMode }>({ open: false, mode: "home" });
   const [lessonStone, setLessonStone] = useState<{ id: string; title: string } | null>(null);
+  const [reviewStone, setReviewStone] = useState<{ id: string; title: string } | null>(null);
+  const [plannerOpen, setPlannerOpen] = useState(false);
+  const lessonOpenedAt = useRef<number | null>(null);
 
   const loadPath = useCallback(async () => {
     setPathLoading(true);
@@ -61,15 +70,17 @@ export function AppShell() {
   }, [start]);
 
   // Android back button: close whatever is on top, then go back to the path, then leave the app.
-  const backState = useRef({ lesson: false, magic: false, tab });
+  const backState = useRef({ lesson: false, review: false, planner: false, magic: false, tab });
   useEffect(() => {
-    backState.current = { lesson: lessonStone !== null, magic: magic.open, tab };
-  }, [lessonStone, magic.open, tab]);
+    backState.current = { lesson: lessonStone !== null, review: reviewStone !== null, planner: plannerOpen, magic: magic.open, tab };
+  }, [lessonStone, reviewStone, plannerOpen, magic.open, tab]);
   useEffect(
     () =>
       onBackButton(() => {
         const current = backState.current;
         if (current.lesson) setLessonStone(null);
+        else if (current.review) setReviewStone(null);
+        else if (current.planner) setPlannerOpen(false);
         else if (current.magic) setMagic((m) => ({ ...m, open: false }));
         else if (current.tab !== "path") setTab("path");
         else return false;
@@ -83,7 +94,23 @@ export function AppShell() {
     void loadPath();
   }, [loadPath]);
 
-  const closeLesson = useCallback(() => setLessonStone(null), []);
+  // Counts the minutes since the lesson opened toward today, once, when it closes.
+  useEffect(() => {
+    if (lessonStone) {
+      lessonOpenedAt.current = Date.now();
+      return;
+    }
+    const opened = lessonOpenedAt.current;
+    lessonOpenedAt.current = null;
+    if (opened === null) return;
+    const minutes = Math.min(MAX_LESSON_MINUTES, Math.round((Date.now() - opened) / 60000));
+    if (minutes >= 1) api.logStudyMinutes(minutes).catch(() => undefined);
+  }, [lessonStone]);
+
+  const closeLesson = useCallback(() => {
+    setLessonStone(null);
+    setProgressKey((k) => k + 1);
+  }, []);
   const finishLesson = useCallback(() => {
     setLessonStone(null);
     setTab("path");
@@ -95,7 +122,7 @@ export function AppShell() {
   const twoPane = wide && lessonStone !== null;
 
   // While a full-screen lesson or the Magic + sheet is open, the page behind it can't be tapped or reached by screen readers.
-  const covered = magic.open || (lessonStone !== null && !wide);
+  const covered = magic.open || reviewStone !== null || plannerOpen || (lessonStone !== null && !wide);
   const hasPath = (path?.courses.length ?? 0) > 0;
 
   return (
@@ -130,14 +157,24 @@ export function AppShell() {
         )}
         {(boot.state === "loading" || boot.state === "ready") &&
           (tab === "path" ? (
-            <PathMap
-              path={path}
-              loading={boot.state === "loading" || pathLoading}
-              error={pathError}
-              onRetry={loadPath}
-              onOpenStone={(stone) => setLessonStone({ id: stone.id, title: stone.title })}
-              onAddBook={() => setMagic({ open: true, mode: "book" })}
-            />
+            <>
+              {boot.state === "ready" && hasPath && (
+                <TodayCard
+                  refreshKey={progressKey}
+                  onOpenStone={setLessonStone}
+                  onReview={setReviewStone}
+                  onOpenPlanner={() => setPlannerOpen(true)}
+                />
+              )}
+              <PathMap
+                path={path}
+                loading={boot.state === "loading" || pathLoading}
+                error={pathError}
+                onRetry={loadPath}
+                onOpenStone={(stone) => setLessonStone({ id: stone.id, title: stone.title })}
+                onAddBook={() => setMagic({ open: true, mode: "book" })}
+              />
+            </>
           ) : (
             boot.state === "ready" && (
               <ReadinessRings
@@ -173,6 +210,16 @@ export function AppShell() {
         onOpenStone={setLessonStone}
       />
       <LessonPlayer stone={lessonStone} pane={wide} onClose={closeLesson} onFinished={finishLesson} />
+      <ReviewSheet
+        stone={reviewStone}
+        onClose={() => setReviewStone(null)}
+        onSaved={refreshProgress}
+        onRelearn={(stone) => {
+          setReviewStone(null);
+          setLessonStone(stone);
+        }}
+      />
+      <PlannerSheet open={plannerOpen} path={path} onClose={() => setPlannerOpen(false)} onSaved={refreshProgress} />
     </AmbientCanvas>
   );
 }

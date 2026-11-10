@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion, type PanInfo } from "framer-motion";
-import { ArrowDown, BookPlus, CalendarRange, Check, ChevronDown, ListOrdered, Lock, Play, RotateCcw, Route, Sparkles } from "lucide-react";
+import { ArrowDown, BookPlus, CalendarRange, Check, ChevronDown, Clock, ListOrdered, Lock, Play, RotateCcw, Route, Sparkles } from "lucide-react";
 import type { PathCourse, PathModule, PathStone, PathView, StoneStatus } from "@/lib/api-types";
 import { readString, writeString } from "@/lib/client/prefs";
 import { cn } from "@/lib/cn";
@@ -522,7 +522,7 @@ function StoneNode({ stone, isNext, onOpen, ref }: StoneNodeProps) {
         data-stone-node
         disabled={locked}
         onClick={() => onOpen(stone)}
-        aria-label={`${stone.title}, ${meta.label}${isNext ? ", up next" : ""}`}
+        aria-label={`${stone.title}, ${meta.label}${stone.dueForReview ? ", review due" : ""}${isNext ? ", up next" : ""}`}
         whileTap={locked || reduceMotion ? undefined : { scale: 0.9 }}
         animate={pulse ? { boxShadow: [meta.glow, "0 0 0px 0px rgba(0,0,0,0)", meta.glow] } : { boxShadow: meta.glow }}
         transition={pulse ? { duration: 2.2, repeat: Infinity, ease: "easeInOut" } : { duration: 0.3 }}
@@ -537,6 +537,11 @@ function StoneNode({ stone, isNext, onOpen, ref }: StoneNodeProps) {
       >
         {!locked && <span aria-hidden className="pointer-events-none absolute inset-x-3 top-1.5 h-1/3 rounded-full bg-gradient-to-b from-snow/50 to-transparent" />}
         <meta.Icon aria-hidden className={cn("relative", locked ? "h-6 w-6" : "h-8 w-8")} strokeWidth={3} />
+        {stone.dueForReview && (
+          <span aria-hidden className="absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full bg-amber-300 text-canvas ring-2 ring-canvas">
+            <Clock className="h-4 w-4" strokeWidth={3} />
+          </span>
+        )}
       </motion.button>
       <p className={cn("line-clamp-2 rounded-lg bg-canvas/75 px-1.5 py-0.5 text-center text-sm font-semibold leading-tight backdrop-blur-sm", locked ? "text-white/60" : "text-white/90")}>{stone.title}</p>
       {isNext && <span className="-mt-1 rounded-full bg-sky-400/20 px-2 py-0.5 text-xs font-bold text-sky-200">Up next</span>}
@@ -549,6 +554,7 @@ function Legend({ counts }: { counts: PathView["counts"] }) {
     { label: "Ready", count: counts.ready, dot: "bg-sky-400" },
     { label: "Mastered", count: counts.mastered, dot: "bg-emerald-400" },
     { label: "Review", count: counts.needsReview, dot: "bg-rose-500" },
+    ...(counts.dueForReview ? [{ label: "Due", count: counts.dueForReview, dot: "bg-amber-300" }] : []),
   ];
   return (
     <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs font-semibold text-white/70" aria-label="Map key">

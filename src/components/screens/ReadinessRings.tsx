@@ -10,6 +10,7 @@ import { api } from "@/lib/client/api";
 import { cn } from "@/lib/cn";
 import { GLASS_SURFACE, GlassCard } from "@/components/glass/GlassCard";
 import { GlossyButton } from "@/components/glass/GlossyButton";
+import { WeeklyReportCard } from "./WeeklyReportCard";
 
 type ReadinessRingsProps = {
   // Changes whenever progress may have changed, so the numbers reload.
@@ -125,6 +126,8 @@ export function ReadinessRings({ refreshKey, hasPath, onOpenStone, onGoToPath, o
       </AnimatePresence>
 
       <TrendCard trend={data.trend} />
+
+      <WeeklyReportCard refreshKey={refreshKey} onOpenStone={onOpenStone} />
 
       <section aria-labelledby="weak-heading" className="flex flex-col gap-3">
         <h2 id="weak-heading" className="flex items-center gap-2 text-lg font-bold">

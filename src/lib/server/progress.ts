@@ -8,6 +8,7 @@ import type {
   TrendWeek,
 } from "@/lib/api-types";
 import { HESI_MIN_ATTEMPTS, PRACTICE_TARGET } from "@/lib/readiness-rules";
+import { addDays, localDay } from "@/lib/study-math";
 import { ApiError } from "./http";
 import type { StoredLesson } from "./lessons";
 import { check, type UserContext } from "./supabase";
@@ -39,8 +40,9 @@ type BookRow = {
 
 const bySort = <T extends { sort_order: number }>(a: T, b: T) => a.sort_order - b.sort_order;
 
-export function buildPathView(courses: { id: string; name: string }[], books: BookRow[]): PathView {
-  const counts = { stones: 0, ready: 0, mastered: 0, needsReview: 0 };
+// `due` holds the mastered stones whose spaced review is due today or earlier.
+export function buildPathView(courses: { id: string; name: string }[], books: BookRow[], due: ReadonlySet<string> = new Set()): PathView {
+  const counts = { stones: 0, ready: 0, mastered: 0, needsReview: 0, dueForReview: 0 };
   let firstReview: string | null = null;
   let firstReady: string | null = null;
 
@@ -74,7 +76,16 @@ export function buildPathView(courses: { id: string; name: string }[], books: Bo
                   counts.ready++;
                   firstReady ??= stone.id;
                 }
-                return { id: stone.id, title: stone.title, summary: stone.summary, status: stone.status, mastery: Number(stone.mastery) };
+                const dueForReview = stone.status === "mastered" && due.has(stone.id);
+                if (dueForReview) counts.dueForReview++;
+                return {
+                  id: stone.id,
+                  title: stone.title,
+                  summary: stone.summary,
+                  status: stone.status,
+                  mastery: Number(stone.mastery),
+                  ...(dueForReview ? { dueForReview } : {}),
+                };
               }),
             })),
           })),
@@ -85,16 +96,23 @@ export function buildPathView(courses: { id: string; name: string }[], books: Bo
   return { courses: result, counts, nextStoneId: firstReview ?? firstReady };
 }
 
-export async function loadPath(ctx: UserContext): Promise<PathView> {
-  const [courses, books] = await Promise.all([
+export async function loadPath(ctx: UserContext, now = new Date()): Promise<PathView> {
+  const [courses, books, profile, reviews] = await Promise.all([
     ctx.supabase.from("courses").select("id, name").order("sort_order"),
     ctx.supabase
       .from("textbooks")
       .select(
         "id, title, edition, cover_url, course_id, created_at, units(id, title, sort_order, modules(id, title, chapter_number, sort_order, stepping_stones(id, title, summary, status, mastery, sort_order)))",
       ),
+    ctx.supabase.from("study_profiles").select("timezone").maybeSingle(),
+    // Anything due by tomorrow in UTC covers today in every time zone; the exact day is checked below.
+    ctx.supabase.from("stone_reviews").select("stone_id, due_on").lte("due_on", addDays(now.toISOString().slice(0, 10), 1)),
   ]);
-  return buildPathView(check(courses, "load courses") as { id: string; name: string }[], check(books, "load path") as BookRow[]);
+  const today = localDay(now, (check(profile, "load study profile") as { timezone: string } | null)?.timezone ?? "UTC");
+  const due = new Set(
+    (check(reviews, "load reviews") as { stone_id: string; due_on: string }[]).filter((r) => r.due_on <= today).map((r) => r.stone_id),
+  );
+  return buildPathView(check(courses, "load courses") as { id: string; name: string }[], check(books, "load path") as BookRow[], due);
 }
 
 // ---------------------------------------------------------------------------

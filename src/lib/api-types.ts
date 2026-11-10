@@ -8,6 +8,8 @@ export type PathStone = {
   summary: string | null;
   status: StoneStatus;
   mastery: number;
+  // Mastered, and its spaced review is due today or earlier.
+  dueForReview?: boolean;
 };
 
 export type PathModule = { id: string; title: string; chapterNumber: string | null; stones: PathStone[] };
@@ -17,7 +19,7 @@ export type PathCourse = { id: string; name: string; books: PathBook[] };
 
 export type PathView = {
   courses: PathCourse[];
-  counts: { stones: number; ready: number; mastered: number; needsReview: number };
+  counts: { stones: number; ready: number; mastered: number; needsReview: number; dueForReview?: number };
   // The stone the student should open next: the first one needing review, else the first ready one.
   nextStoneId: string | null;
 };
@@ -199,6 +201,85 @@ export type SearchResult = {
   stone: { id: string; title: string; status: StoneStatus } | null;
   title: string;
   snippet: string;
+};
+
+// ---------------------------------------------------------------------------
+// Study planner, spaced review, streaks and the weekly report
+// ---------------------------------------------------------------------------
+
+export type StudyProfileView = {
+  nclexDate: string | null;
+  hesiDate: string | null;
+  // "HH:MM", in the student's time zone.
+  reminderTime: string | null;
+  timezone: string;
+  reviewBufferDays: number;
+};
+
+// weekday is ISO: 1 is Monday, 7 is Sunday. start is "HH:MM". A null course goes to whichever course is furthest behind.
+export type StudyBlockView = { id?: string; weekday: number; start: string; minutes: number; courseId: string | null };
+
+export type ReviewGrade = "again" | "hard" | "good" | "easy";
+
+export type PaceStatus = "no_exam" | "on_track" | "tight" | "behind" | "done";
+
+export type PaceView = {
+  exam: { kind: "nclex" | "hesi"; date: string; daysLeft: number } | null;
+  // Last day for new stones, before the review-only buffer.
+  learnBy: string | null;
+  studyDaysLeft: number;
+  remainingStones: number;
+  stonesPerStudyDay: number;
+  capacityPerStudyDay: number;
+  status: PaceStatus;
+};
+
+export type StreakView = { current: number; best: number; activeToday: boolean };
+
+export type TodayStone = { id: string; title: string; courseId: string; status: StoneStatus };
+
+export type TodayView = {
+  day: string;
+  weekday: number;
+  blocks: { start: string; minutes: number; courseId: string; courseName: string }[];
+  plannedMinutes: number;
+  reviews: (TodayStone & { dueOn: string; overdueDays: number })[];
+  reviewsDueTotal: number;
+  learn: TodayStone[];
+  learnGoal: number;
+  questionsGoal: number;
+  done: { minutes: number; stones: number; questions: number; reviews: number };
+  streak: StreakView;
+  pace: PaceView;
+  reminderTime: string | null;
+  // False until the student saves exam dates or study times.
+  hasSetup: boolean;
+};
+
+export type ReviewResult = {
+  grade: ReviewGrade;
+  correct: number;
+  answered: number;
+  intervalDays: number;
+  dueOn: string;
+  status: StoneStatus;
+};
+
+export type WeeklyReportView = {
+  weekStart: string;
+  weekEnd: string;
+  complete: boolean;
+  minutesStudied: number;
+  minutesPlanned: number;
+  daysStudied: number;
+  questions: number;
+  accuracy: number | null;
+  // Change in the share of questions right against the week before, when both weeks have answers.
+  accuracyChange: number | null;
+  reviews: number;
+  mastered: { id: string; title: string }[];
+  slipped: { id: string; title: string }[];
+  nextFocus: string[];
 };
 
 export type ApiErrorBody = { error: { code: string; message: string } };
