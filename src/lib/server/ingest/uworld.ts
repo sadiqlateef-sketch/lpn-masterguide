@@ -5,6 +5,7 @@ import { ApiError } from "../http";
 import { BLUEPRINT_GUIDE, LPN_SCOPE_RULES } from "../prompts";
 import { check, type UserContext } from "../supabase";
 import { invalidateLessons } from "../path";
+import { tidyOptionRationales } from "../practice";
 
 const STONE_MATCH_THRESHOLD = 0.35;
 
@@ -42,6 +43,7 @@ const TWIN_SYSTEM = `You write brand-new NCLEX-PN practice items for an LPN/LVN 
 Never copy the original question's wording, client details or answer choices: write a new client, a new situation and new options that test the same concept.
 The twin is a standard multiple-choice item (one correct answer) or select-all-that-apply when the concept suits it.
 The bowtie is an NGN mini bowtie: one condition the client is most likely experiencing (choose 1 of 4), two actions to take (choose 2 of 5), and two parameters to monitor (choose 2 of 5).
+Give the twin a one-sentence reason for every option, right or wrong.
 Every correct answer must be something an LPN/LVN may do. Use option ids "A", "B", "C" and so on.
 
 ${LPN_SCOPE_RULES}`;
@@ -118,7 +120,7 @@ export async function addTwinPractice(ctx: UserContext, questionId: string, ques
         origin_question_id: questionId,
         item_type: practice.twin.correct_option_ids.length > 1 ? "sata" : "twin_mcq",
         ngn_step_id: source.ngn_step_id,
-        payload: practice.twin,
+        payload: { ...practice.twin, option_rationales: tidyOptionRationales(practice.twin.option_rationales, practice.twin.options) },
       },
       {
         user_id: ctx.user.id,

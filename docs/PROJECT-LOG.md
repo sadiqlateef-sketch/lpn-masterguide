@@ -82,13 +82,23 @@ A study app for LPN/LVN students, from day one to passing the NCLEX-PN and the H
 - Weekly report on Readiness.
 - Migration `006_planner.sql` was applied to the live database on 2026-11-10 before the merge.
 
-### Next update, stage 5 (2026-11-10, branch `claude/anki-import`, awaiting approval)
+### Next update, stage 5 (2026-11-10, merged and live)
 
 - "Add an Anki Deck" in Magic +: an `.apkg`, `.colpkg` or plain-text export goes straight to Storage, then the server reads the cards and files each under its closest stone.
 - "Check cards" fact-checks each card against the student's own books and notes, with the source words quoted. Every fix waits for Accept; nothing changes on its own. Each deck checks up to 200 cards, and the student can allow more.
 - "Suggest cards for thin stones" writes new cards from a stone's passages and notes, waiting for Add to deck or Skip.
 - Cleared cards come first in a stone's spaced review, as flip cards. On the web, "Export for Anki" downloads the checked deck.
-- Needs migration `007_anki.sql` on the live database before the merge. It is written and tested on a scratch database, not applied.
+- Migration `007_anki.sql` was applied to the live database on 2026-11-10 before the merge.
+
+### Next update, stage 6a (2026-11-10, branch `claude/games-and-practice`, awaiting approval)
+
+- A Practice tab in the dock with seven games (med match, lab values, priority triage, PPE order, med-math speed round, scope or not, isolation match), each ending with NCLEX-style questions.
+- Timed adaptive practice exams (short and long) with results by client need and no feedback until the end.
+- New NGN question types per stone (matrix, drop-down, highlight, ordered response) and a reason for every option on new questions.
+- Drug cards built from the student's sources, marked field by field, and a mistake notebook with notes and redo.
+- Readiness now counts game rounds and questions that aren't tied to a stone.
+- Needs migration `008_games_and_practice.sql` on the live database before the merge. It is written and tested on a scratch database, not applied.
+- Stage 6b (offline lessons, audio playlist, clinical prep, care plan builder, skills checklists, sharing) is next.
 
 ## Going live (2026-10-19 to 2026-11-10)
 
@@ -129,7 +139,8 @@ Push to `main` on GitHub and Vercel redeploys on its own. A database change goes
 
 ## Open items
 
-- **Migration 007:** apply `007_anki.sql` to the live Supabase project before stage 5 goes live.
+- **Migration 008:** apply `008_games_and_practice.sql` to the live Supabase project before stage 6a goes live.
+- **Android app:** the phone needs a new APK to show the Practice tab; the web app updates on deploy.
 - **Review model for Anki checks:** optional `ANTHROPIC_REVIEW_MODEL` in Vercel. Until it's set, unsure cards get a second look from the everyday model.
 - **Anki files not yet tried on the live app:** the import is tested with decks built in code, not a real deck exported from Anki, and the export hasn't been opened in Anki yet.
 - **Phone reminders:** need the `@capacitor/local-notifications` plugin. The owner didn't pick it when stage 4 merged, so it isn't added.

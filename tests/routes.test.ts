@@ -24,6 +24,18 @@ import { GET as profileGet, PUT as profilePut } from "@/app/api/planner/profile/
 import { GET as todayGet } from "@/app/api/planner/today/route";
 import { GET as weeklyGet } from "@/app/api/reports/weekly/route";
 import { POST as reviewPost } from "@/app/api/reviews/[stoneId]/route";
+import { GET as gamesGet } from "@/app/api/games/route";
+import { POST as gameRound } from "@/app/api/games/[game]/round/route";
+import { POST as gameAnswer } from "@/app/api/games/rounds/[roundId]/answer/route";
+import { GET as examsGet, POST as examsPost } from "@/app/api/exams/route";
+import { GET as examGet } from "@/app/api/exams/[examId]/route";
+import { POST as examAnswer } from "@/app/api/exams/[examId]/answer/route";
+import { POST as examEnd } from "@/app/api/exams/[examId]/end/route";
+import { GET as drugCardsGet, POST as drugCardsPost } from "@/app/api/drug-cards/route";
+import { DELETE as drugCardDelete, GET as drugCardGet } from "@/app/api/drug-cards/[cardId]/route";
+import { GET as mistakesGet } from "@/app/api/mistakes/route";
+import { PUT as mistakeNote } from "@/app/api/mistakes/[itemId]/note/route";
+import { GET as ngnGet, POST as ngnPost } from "@/app/api/stones/[stoneId]/ngn/route";
 
 const ID = "6f1c2c1e-4c7b-4a4e-9a51-0c6f3a1d2b7e";
 const json = (body: unknown) => ({ method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json" } });
@@ -59,6 +71,22 @@ const handlers = [
   ["planner/activity", () => plannerActivity(new Request("http://x/api/planner/activity", json({ minutes: 10 })))],
   ["reviews", () => reviewPost(new Request(`http://x/api/reviews/${ID}`, json({ startedAt: new Date().toISOString() })), { params: Promise.resolve({ stoneId: ID }) })],
   ["reports/weekly", () => weeklyGet(new Request("http://x/api/reports/weekly"))],
+  ["games GET", () => gamesGet(new Request("http://x/api/games"))],
+  ["games round", () => gameRound(new Request("http://x/api/games/scope/round", json({})), { params: Promise.resolve({ game: "scope" }) })],
+  ["games answer", () => gameAnswer(new Request(`http://x/api/games/rounds/${ID}/answer`, json({ answer: {}, durationMs: 1 })), { params: Promise.resolve({ roundId: ID }) })],
+  ["exams GET", () => examsGet(new Request("http://x/api/exams"))],
+  ["exams POST", () => examsPost(new Request("http://x/api/exams", json({ length: "short" })))],
+  ["exam GET", () => examGet(new Request(`http://x/api/exams/${ID}`), { params: Promise.resolve({ examId: ID }) })],
+  ["exam answer", () => examAnswer(new Request(`http://x/api/exams/${ID}/answer`, json({ itemId: ID, selected: ["A"] })), { params: Promise.resolve({ examId: ID }) })],
+  ["exam end", () => examEnd(new Request(`http://x/api/exams/${ID}/end`, { method: "POST" }), { params: Promise.resolve({ examId: ID }) })],
+  ["drug-cards GET", () => drugCardsGet(new Request("http://x/api/drug-cards"))],
+  ["drug-cards POST", () => drugCardsPost(new Request("http://x/api/drug-cards", json({ name: "digoxin" })))],
+  ["drug-card GET", () => drugCardGet(new Request(`http://x/api/drug-cards/${ID}`), { params: Promise.resolve({ cardId: ID }) })],
+  ["drug-card DELETE", () => drugCardDelete(new Request(`http://x/api/drug-cards/${ID}`, { method: "DELETE" }), { params: Promise.resolve({ cardId: ID }) })],
+  ["mistakes", () => mistakesGet(new Request("http://x/api/mistakes"))],
+  ["mistake note", () => mistakeNote(new Request(`http://x/api/mistakes/${ID}/note`, { ...json({ note: "x" }), method: "PUT" }), { params: Promise.resolve({ itemId: ID }) })],
+  ["stone NGN GET", () => ngnGet(new Request(`http://x/api/stones/${ID}/ngn`), { params: Promise.resolve({ stoneId: ID }) })],
+  ["stone NGN POST", () => ngnPost(new Request(`http://x/api/stones/${ID}/ngn`, { method: "POST" }), { params: Promise.resolve({ stoneId: ID }) })],
 ] as const;
 
 describe("API routes", () => {

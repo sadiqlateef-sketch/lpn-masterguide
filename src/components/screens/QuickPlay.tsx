@@ -7,17 +7,16 @@ import { ArrowRight, Check, CheckCircle2, PartyPopper, X, XCircle } from "lucide
 import type { BowtieAnswer, ChoiceView, CompleteResult, GradeResult, PracticeView } from "@/lib/api-types";
 import { api } from "@/lib/client/api";
 import { haptic } from "@/lib/client/native";
-import { togglePick } from "@/lib/quick-play";
+import { attemptBody, EMPTY_ANSWERS, isAnswerReady, orderFor, togglePick, type AnswerState } from "@/lib/quick-play";
 import { cn } from "@/lib/cn";
 import { GlossyButton } from "@/components/glass/GlossyButton";
+import { ClozeItem, HighlightItem, MatrixItem, OrderedItem } from "./NgnItems";
 
 // Tap-to-answer practice on the last story card. State lives in the lesson player so swiping back
 // to an earlier card and returning doesn't lose answers.
 
-export type QuickPlayState = {
+export type QuickPlayState = AnswerState & {
   index: number;
-  picks: Record<string, string[]>;
-  bowtie: Record<string, BowtieAnswer>;
   results: Record<string, GradeResult>;
   checking: boolean;
   finishing: boolean;
@@ -26,9 +25,8 @@ export type QuickPlayState = {
 };
 
 export const EMPTY_QUICK_PLAY: QuickPlayState = {
+  ...EMPTY_ANSWERS,
   index: 0,
-  picks: {},
-  bowtie: {},
   results: {},
   checking: false,
   finishing: false,
@@ -54,9 +52,7 @@ export function QuickPlay({ stoneId, stoneTitle, items, state, setState, onDone,
     if (!item || state.checking) return;
     setState((s) => ({ ...s, checking: true, error: null }));
     try {
-      const result = await api.attempt(
-        item.type === "bowtie" ? { itemId: item.id, bowtie: state.bowtie[item.id] } : { itemId: item.id, selected: state.picks[item.id] ?? [] },
-      );
+      const result = await api.attempt(attemptBody(item, state));
       void haptic(result.correct ? "success" : "error");
       setState((s) => ({ ...s, checking: false, results: { ...s.results, [item.id]: result } }));
     } catch (error) {
@@ -104,14 +100,7 @@ export function QuickPlay({ stoneId, stoneTitle, items, state, setState, onDone,
   }
 
   const result = state.results[item.id];
-  const ready =
-    item.type === "bowtie"
-      ? Boolean(
-          state.bowtie[item.id]?.condition &&
-            state.bowtie[item.id]?.actions.length === item.actions.pick &&
-            state.bowtie[item.id]?.parameters.length === item.parameters.pick,
-        )
-      : (state.picks[item.id]?.length ?? 0) > 0;
+  const ready = isAnswerReady(item, state);
 
   return (
     <div className="flex flex-col gap-4">
@@ -119,7 +108,7 @@ export function QuickPlay({ stoneId, stoneTitle, items, state, setState, onDone,
         <span>
           Question {state.index + 1} of {items.length}
         </span>
-        <span>{item.origin === "uworld_twin" ? "Twin of your UWorld miss" : item.type === "bowtie" ? "NGN checkpoint" : "New question"}</span>
+        <span>{item.origin === "uworld_twin" ? "Twin of your UWorld miss" : itemLabel(item)}</span>
       </div>
 
       <motion.div
@@ -130,11 +119,7 @@ export function QuickPlay({ stoneId, stoneTitle, items, state, setState, onDone,
         className="relative flex flex-col gap-4 rounded-3xl"
       >
         <AnswerFlash result={result} />
-        {item.type === "bowtie" ? (
-          <BowtieItem item={item} result={result} state={state} setState={setState} />
-        ) : (
-          <ChoiceItem item={item} result={result} state={state} setState={setState} />
-        )}
+        <PracticeItemBody item={item} result={result} answers={state} setAnswers={(fn) => setState((s) => ({ ...s, ...fn(s) }))} />
       </motion.div>
 
       {result && <Feedback result={result} />}
@@ -163,15 +148,61 @@ export function QuickPlay({ stoneId, stoneTitle, items, state, setState, onDone,
   );
 }
 
+export function itemLabel(item: PracticeView): string {
+  switch (item.type) {
+    case "bowtie":
+      return "NGN bowtie";
+    case "matrix":
+      return "NGN matrix";
+    case "cloze":
+      return "NGN drop-down";
+    case "highlight":
+      return "NGN highlight";
+    case "ordered":
+      return "NGN ordered response";
+    default:
+      return "New question";
+  }
+}
+
+type SetAnswers = (fn: (a: AnswerState) => AnswerState) => void;
+
+// Any practice question, for Quick Play or an exam. `result` shows the right answers once graded.
+export function PracticeItemBody({ item, result, answers, setAnswers }: { item: PracticeView; result: GradeResult | undefined; answers: AnswerState; setAnswers: SetAnswers }) {
+  switch (item.type) {
+    case "bowtie":
+      return <BowtieItem item={item} result={result} answers={answers} setAnswers={setAnswers} />;
+    case "matrix":
+      return (
+        <MatrixItem item={item} answer={answers.matrix[item.id] ?? {}} result={result} onChange={(next) => setAnswers((a) => ({ ...a, matrix: { ...a.matrix, [item.id]: next } }))} />
+      );
+    case "cloze":
+      return <ClozeItem item={item} answer={answers.cloze[item.id] ?? {}} result={result} onChange={(next) => setAnswers((a) => ({ ...a, cloze: { ...a.cloze, [item.id]: next } }))} />;
+    case "highlight":
+      return (
+        <HighlightItem
+          item={item}
+          picks={answers.picks[item.id] ?? []}
+          result={result}
+          onToggle={(id) => setAnswers((a) => ({ ...a, picks: { ...a.picks, [item.id]: togglePick(a.picks[item.id] ?? [], id, item.segments.length) } }))}
+        />
+      );
+    case "ordered":
+      return <OrderedItem item={item} order={orderFor(item, answers)} result={result} onChange={(next) => setAnswers((a) => ({ ...a, order: { ...a.order, [item.id]: next } }))} />;
+    default:
+      return <ChoiceItem item={item} result={result} answers={answers} setAnswers={setAnswers} />;
+  }
+}
+
 type ItemProps<T> = {
   item: T;
   result: GradeResult | undefined;
-  state: QuickPlayState;
-  setState: React.Dispatch<React.SetStateAction<QuickPlayState>>;
+  answers: AnswerState;
+  setAnswers: SetAnswers;
 };
 
-function ChoiceItem({ item, result, state, setState }: ItemProps<Extract<PracticeView, { type: "mcq" | "sata" }>>) {
-  const picks = state.picks[item.id] ?? [];
+function ChoiceItem({ item, result, answers, setAnswers }: ItemProps<Extract<PracticeView, { type: "mcq" | "sata" }>>) {
+  const picks = answers.picks[item.id] ?? [];
   const limit = item.type === "sata" ? item.options.length : 1;
   return (
     <>
@@ -184,15 +215,15 @@ function ChoiceItem({ item, result, state, setState }: ItemProps<Extract<Practic
         correctIds={result?.correctOptionIds}
         multiple={item.type === "sata"}
         disabled={Boolean(result)}
-        onPick={(id) => setState((s) => ({ ...s, picks: { ...s.picks, [item.id]: togglePick(s.picks[item.id] ?? [], id, limit) } }))}
+        onPick={(id) => setAnswers((a) => ({ ...a, picks: { ...a.picks, [item.id]: togglePick(a.picks[item.id] ?? [], id, limit) } }))}
       />
     </>
   );
 }
 
-function BowtieItem({ item, result, state, setState }: ItemProps<Extract<PracticeView, { type: "bowtie" }>>) {
-  const answer = state.bowtie[item.id] ?? { condition: "", actions: [], parameters: [] };
-  const update = (patch: Partial<BowtieAnswer>) => setState((s) => ({ ...s, bowtie: { ...s.bowtie, [item.id]: { ...answer, ...patch } } }));
+function BowtieItem({ item, result, answers, setAnswers }: ItemProps<Extract<PracticeView, { type: "bowtie" }>>) {
+  const answer = answers.bowtie[item.id] ?? { condition: "", actions: [], parameters: [] };
+  const update = (patch: Partial<BowtieAnswer>) => setAnswers((a) => ({ ...a, bowtie: { ...a.bowtie, [item.id]: { ...answer, ...patch } } }));
   return (
     <>
       <p className="text-lg font-semibold leading-snug">{item.scenario}</p>
@@ -308,7 +339,7 @@ function Options({ name, options, picks, correctIds, multiple, disabled, onPick 
   );
 }
 
-function Feedback({ result }: { result: GradeResult }) {
+export function Feedback({ result }: { result: GradeResult }) {
   return (
     <div role="status" className={cn("rounded-2xl p-4", result.correct ? "bg-emerald-400/15" : "bg-rose-500/15")}>
       <p className={cn("text-lg font-bold", result.correct ? "text-emerald-200" : "text-rose-200")}>
@@ -316,6 +347,16 @@ function Feedback({ result }: { result: GradeResult }) {
       </p>
       <p className="mt-1 leading-snug text-white/85">{result.rationale}</p>
       {result.scopeNote && <p className="mt-2 text-sm leading-snug text-sky-200">LPN scope: {result.scopeNote}</p>}
+      {result.optionRationales && result.optionRationales.length > 0 && (
+        <ul className="mt-3 flex flex-col gap-1.5 border-t border-white/10 pt-3 text-sm leading-snug">
+          {result.optionRationales.map((r) => (
+            <li key={r.id} className="flex gap-2">
+              <span className={cn("font-bold", result.correctOptionIds?.includes(r.id) ? "text-emerald-200" : "text-white/60")}>{r.id}</span>
+              <span className="text-white/80">{r.why}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

@@ -81,8 +81,8 @@ function fakeLesson(prompt: string): Lesson {
     notebook_title: quote ? "Your digoxin pearl" : "",
     notebook_pearls: quote ? [{ note_index: 0, quote }] : [],
     quiz: [
-      { stem: "First question?", options: options.slice(0, 4), correct_option_ids: ["B"], rationale: "B is safest.", ngn_step_id: "take_action" },
-      { stem: "Select all that apply.", options, correct_option_ids: ["A", "C"], rationale: "A and C.", ngn_step_id: "recognize_cues" },
+      { stem: "First question?", options: options.slice(0, 4), correct_option_ids: ["B"], rationale: "B is safest.", option_rationales: [], ngn_step_id: "take_action" },
+      { stem: "Select all that apply.", options, correct_option_ids: ["A", "C"], rationale: "A and C.", option_rationales: [], ngn_step_id: "recognize_cues" },
     ],
     checkpoint: {
       scenario: "A client...",

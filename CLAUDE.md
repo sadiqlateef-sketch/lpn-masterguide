@@ -18,7 +18,7 @@ Build one phase at a time and stop for the owner's approval after each.
 3. Screens (`PathMap`, `MagicAddSheet`, `ReadinessRings`) and the lesson generator (`/api/lessons/generate`). (done)
 4. Capacitor Android config, camera, TTS, APK build scripts. (done)
 
-The next update is planned in `docs/ROADMAP.md` as six stages, each on its own branch with the owner's approval before merge. Stages 1 and 2 (the roadmap and the 20 UI fixes) are merged. Stage 3 (notebooks, whole textbooks, course plans, Ask and search) is on `claude/sources-and-plans`.
+The next update is planned in `docs/ROADMAP.md` as six stages, each on its own branch with the owner's approval before merge. Stages 1 to 5 are merged. Stage 6a (games, practice exams, NGN types, drug cards, the mistake notebook) is on `claude/games-and-practice`; stage 6b (offline lessons, audio playlist, clinical prep, care plans, skills checklists, sharing) comes after it.
 
 ## Working style
 
@@ -77,6 +77,16 @@ The owner wants speed and thoroughness over saving tokens: build complete featur
 - Fact-check: 8 cards per call with numbered sources; `settleCheck` keeps a verdict only when its quotes appear word for word in the source they name (`quoteInSource`). Unsure cards go once to `env.anthropicReviewModel()` (`ANTHROPIC_REVIEW_MODEL`, falling back to `ANTHROPIC_MODEL`). `generateStructured` takes a `model` override for this.
 - Cards change only through `decide_card_check` (accepting a fix keeps `original_front`/`original_back`; dismissing changes nothing) and `decide_card_suggestion`. The cap is `reserve_deck_checks` / `release_deck_checks`.
 - `GET /api/stones/{id}/cards` gives a stone's cleared cards; `ReviewSheet` shows them before the questions.
+
+## Games and practice (stage 6a)
+
+- Screens: the dock's Practice tab is `src/components/screens/practice/PracticeHub.tsx`; each feature opens a full-screen sheet from the same folder (`GameSheet`, `ExamSheet`, `MistakesSheet`, `DrugCardsSheet`, `NgnSheet`, all on `FullSheet`). `EndingQuestions` wraps `QuickPlay` with `onRoundDone` for questions that close a round or card. `PracticeItemBody` renders any question type for Quick Play and exams.
+- Games: `src/lib/server/games/` has `bank.ts` (fixed CDC PPE order, isolation, scope and lab content), `medmath.ts` (problems built in code, `parseAnswer`, `checkMedMath`), `build.ts` (building and grading rounds, `GAME_INFO`) and `rounds.ts` (start, answer, endings, list). The answer key stays in `game_rounds.payload` and never reaches the client. A round is answered once (conditional update on `answered_at is null`).
+- Round endings prefer the student's own questions on the round's stones or client need; otherwise two `round_mcq` items are written and stored with `client_need_id` and no stone.
+- NGN: `src/lib/server/ngn.ts` writes four matrix/cloze/highlight/ordered items per call (max 12 per stone); `practice.ts` grades them (`gradeMatrix`, `gradeCloze`, `gradeHighlight`, `gradeOrdered`). Every new question carries `option_rationales`.
+- Exams: `src/lib/server/exams.ts` (EAP ability estimate on a grid, stop rule at a 95% band around 0, client-need weighting). The verdict must always say it isn't an NCLEX prediction.
+- Drug cards: `src/lib/server/drug-cards.ts`. A field is marked from the student's sources only when its quote is real (`checkedQuotes`).
+- Readiness: `readiness_by_client_need()` counts stone-tagged attempts, stoneless items by their own client need, and game rounds (once each, right at 80%).
 
 ## Android app (Phase 4)
 

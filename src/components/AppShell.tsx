@@ -5,7 +5,7 @@ import { AmbientCanvas } from "@/components/glass/AmbientCanvas";
 import { FloatingGlassDock, type DockTab } from "@/components/glass/FloatingGlassDock";
 import { GlassCard } from "@/components/glass/GlassCard";
 import { GlossyButton } from "@/components/glass/GlossyButton";
-import type { PathView } from "@/lib/api-types";
+import type { GameSummary, PathView } from "@/lib/api-types";
 import { api } from "@/lib/client/api";
 import { onBackButton, setupNativeChrome } from "@/lib/client/native";
 import { TWO_PANE_QUERY, useMediaQuery } from "@/lib/client/use-media-query";
@@ -15,12 +15,28 @@ import { LessonPlayer } from "./screens/LessonPlayer";
 import { MagicAddSheet, type MagicMode } from "./screens/MagicAddSheet";
 import { PathMap } from "./screens/PathMap";
 import { PlannerSheet } from "./screens/PlannerSheet";
+import { DrugCardsSheet } from "./screens/practice/DrugCardsSheet";
+import { ExamSheet, type ExamOpen } from "./screens/practice/ExamSheet";
+import { GameSheet } from "./screens/practice/GameSheet";
+import { MistakesSheet } from "./screens/practice/MistakesSheet";
+import { NgnSheet } from "./screens/practice/NgnSheet";
+import { PracticeHub } from "./screens/practice/PracticeHub";
 import { ReadinessRings } from "./screens/ReadinessRings";
 import { ReviewSheet } from "./screens/ReviewSheet";
 import { TodayCard } from "./screens/TodayCard";
 
 // Time in one lesson counts toward today's study minutes, up to this much (a lesson left open overnight isn't study).
 const MAX_LESSON_MINUTES = 90;
+
+// The practice screen open over the app, if any.
+type PracticeSheet =
+  | { kind: "game"; game: GameSummary }
+  | { kind: "exam"; how: ExamOpen }
+  | { kind: "mistakes" }
+  | { kind: "drugs" }
+  | { kind: "ngn"; stone: { id: string; title: string } };
+
+const TITLES: Record<DockTab, string> = { path: "Your Path", practice: "Practice", readiness: "Readiness" };
 
 type Boot = { state: "loading" } | { state: "ready" } | { state: "error"; message: string } | { state: "unconfigured" };
 
@@ -35,6 +51,7 @@ export function AppShell() {
   const [lessonStone, setLessonStone] = useState<{ id: string; title: string } | null>(null);
   const [reviewStone, setReviewStone] = useState<{ id: string; title: string } | null>(null);
   const [plannerOpen, setPlannerOpen] = useState(false);
+  const [practice, setPractice] = useState<PracticeSheet | null>(null);
   const lessonOpenedAt = useRef<number | null>(null);
 
   const loadPath = useCallback(async () => {
@@ -70,10 +87,10 @@ export function AppShell() {
   }, [start]);
 
   // Android back button: close whatever is on top, then go back to the path, then leave the app.
-  const backState = useRef({ lesson: false, review: false, planner: false, magic: false, tab });
+  const backState = useRef({ lesson: false, review: false, planner: false, practice: false, magic: false, tab });
   useEffect(() => {
-    backState.current = { lesson: lessonStone !== null, review: reviewStone !== null, planner: plannerOpen, magic: magic.open, tab };
-  }, [lessonStone, reviewStone, plannerOpen, magic.open, tab]);
+    backState.current = { lesson: lessonStone !== null, review: reviewStone !== null, planner: plannerOpen, practice: practice !== null, magic: magic.open, tab };
+  }, [lessonStone, reviewStone, plannerOpen, practice, magic.open, tab]);
   useEffect(
     () =>
       onBackButton(() => {
@@ -81,6 +98,7 @@ export function AppShell() {
         if (current.lesson) setLessonStone(null);
         else if (current.review) setReviewStone(null);
         else if (current.planner) setPlannerOpen(false);
+        else if (current.practice) setPractice(null);
         else if (current.magic) setMagic((m) => ({ ...m, open: false }));
         else if (current.tab !== "path") setTab("path");
         else return false;
@@ -107,6 +125,13 @@ export function AppShell() {
     if (minutes >= 1) api.logStudyMinutes(minutes).catch(() => undefined);
   }, [lessonStone]);
 
+  // Practice answers count toward readiness, so its rings and the hub reload after a round.
+  const bumpProgress = useCallback(() => setProgressKey((k) => k + 1), []);
+  const closePractice = useCallback(() => {
+    setPractice(null);
+    setProgressKey((k) => k + 1);
+  }, []);
+
   const closeLesson = useCallback(() => {
     setLessonStone(null);
     setProgressKey((k) => k + 1);
@@ -122,7 +147,7 @@ export function AppShell() {
   const twoPane = wide && lessonStone !== null;
 
   // While a full-screen lesson or the Magic + sheet is open, the page behind it can't be tapped or reached by screen readers.
-  const covered = magic.open || reviewStone !== null || plannerOpen || (lessonStone !== null && !wide);
+  const covered = magic.open || reviewStone !== null || plannerOpen || practice !== null || (lessonStone !== null && !wide);
   const hasPath = (path?.courses.length ?? 0) > 0;
 
   return (
@@ -138,7 +163,7 @@ export function AppShell() {
       >
         <header>
           <p className="text-sm font-semibold uppercase tracking-widest text-sky-300">LPN MasterGuide</p>
-          <h1 className="mt-1 text-3xl font-bold text-white">{tab === "path" ? "Your Path" : "Readiness"}</h1>
+          <h1 className="mt-1 text-3xl font-bold text-white">{TITLES[tab]}</h1>
         </header>
 
         {boot.state === "unconfigured" && (
@@ -175,6 +200,18 @@ export function AppShell() {
                 onAddBook={() => setMagic({ open: true, mode: "book" })}
               />
             </>
+          ) : tab === "practice" ? (
+            boot.state === "ready" && (
+              <PracticeHub
+                path={path}
+                refreshKey={progressKey}
+                onOpenGame={(game) => setPractice({ kind: "game", game })}
+                onOpenExam={(how) => setPractice({ kind: "exam", how })}
+                onOpenMistakes={() => setPractice({ kind: "mistakes" })}
+                onOpenDrugs={() => setPractice({ kind: "drugs" })}
+                onOpenNgn={(stone) => setPractice({ kind: "ngn", stone })}
+              />
+            )
           ) : (
             boot.state === "ready" && (
               <ReadinessRings
@@ -219,6 +256,11 @@ export function AppShell() {
           setLessonStone(stone);
         }}
       />
+      <GameSheet game={practice?.kind === "game" ? practice.game : null} onClose={closePractice} onPlayed={bumpProgress} />
+      <ExamSheet open={practice?.kind === "exam" ? practice.how : null} onClose={closePractice} onChanged={bumpProgress} />
+      <MistakesSheet open={practice?.kind === "mistakes"} onClose={closePractice} onChanged={bumpProgress} />
+      <DrugCardsSheet open={practice?.kind === "drugs"} onClose={closePractice} onChanged={bumpProgress} />
+      <NgnSheet stone={practice?.kind === "ngn" ? practice.stone : null} onClose={closePractice} onChanged={bumpProgress} />
       <PlannerSheet open={plannerOpen} path={path} onClose={() => setPlannerOpen(false)} onSaved={refreshProgress} />
     </AmbientCanvas>
   );
