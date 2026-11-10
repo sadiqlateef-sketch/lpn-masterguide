@@ -2,6 +2,7 @@ import { COURSE_IDS, type CourseId } from "@/lib/blueprint-ids";
 import type { IngestKind } from "../ai-schemas";
 import { buildSyllabus, type BuildSyllabusResult } from "../books/syllabus";
 import { ApiError } from "../http";
+import { resolveNotebook } from "../notebooks";
 import { check, type UserContext } from "../supabase";
 import { storeOriginals, type ParsedUpload } from "../uploads";
 import { classifyImages, classifyText, ingestKindFor, type RouteDecision } from "./classify";
@@ -118,7 +119,13 @@ export async function magicAdd(ctx: UserContext, upload: ParsedUpload): Promise<
         break;
       }
       case "notebooklm_note": {
+        // Folder sync names a notebook by its subfolder; the Magic + sheet sends the picked notebook's id.
+        const notebookId = await resolveNotebook(ctx, {
+          notebookId: upload.fields.notebookId || null,
+          notebookName: upload.fields.notebook || null,
+        });
         const notes = await ingestNotes(ctx, {
+          notebookId,
           files: upload.documents,
           images: upload.images,
           text: upload.text,

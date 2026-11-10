@@ -15,6 +15,7 @@ export const NOTE_EXTENSIONS: Record<string, string>;
 export const MAX_FILE_BYTES: number;
 export function mediaTypeFor(name: string): string | null;
 export function listNoteFiles(folder: string): { files: NoteFile[]; tooBig: NoteFile[] };
+export function notebookFor(key: string): string | null;
 export function hashBytes(bytes: Uint8Array | string): string;
 export function hashFile(abs: string): string;
 export function planSync<L extends { key: string; hash: string | null }, R extends RemoteSource>(

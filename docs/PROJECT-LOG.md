@@ -60,11 +60,19 @@ A study app for LPN/LVN students, from day one to passing the NCLEX-PN and the H
 - Build scripts: `npm run android:apk` (debug), `android:release` and `android:bundle` (signed, for sharing or the Play Store), and `android:keystore`. The build stops if a secret key ever ends up in the app.
 - 112 tests passing at that point.
 
-### Next update, stages 1 and 2 (2026-11-10, branch `claude/ui-polish`, awaiting approval)
+### Next update, stages 1 and 2 (2026-11-10, merged)
 
 - `docs/ROADMAP.md` plans the next update in six stages: the 40 ideas plus multiple NotebookLM notebooks, whole textbooks and a course plan that deepens with each source, a study-time planner, Anki import with fact-check flags, learning games, and NCLEX-style questions closing every section.
 - Stage 2 fixed the 20 UI items: dock and bottom spacing on gesture-bar phones, light mode, course tabs with swipe and a remembered choice, Continue button and chapter jump list, a drawn trail between stones, clearer locked stones, Ready count, a weekly trend chart and tap-to-explain rings on Readiness, first-run screens, shimmer loading, colored story cards, a fading swipe hint, answer flashes, a bigger mastery celebration, the Fold's side-by-side lesson pane, and the phone's text size in the app.
 - Before and after screenshots are in `docs/ui-polish/`. No database change.
+
+### Next update, stage 3 (2026-11-10, branch `claude/sources-and-plans`, awaiting approval)
+
+- Several NotebookLM notebooks: Magic + has a notebook picker, the sync script files each top-level subfolder as a notebook, and lesson cards name the notebook and source.
+- Whole textbook PDFs: "Add a whole book (PDF)" in Magic + splits big PDFs on the phone, uploads the parts straight to Storage and reads them one by one. Lessons then use the real pages and cite them.
+- Course plan: a Path / Plan switch on each course. Weeks of stones with goals, the book pages and notebooks behind each week, how well it's covered, and an NCLEX checkpoint per week. It redrafts when a source changes.
+- Ask about this card (a button on lesson cards) and one search box in Magic +.
+- Needs migration `005_sources_and_plans.sql` on the live database before the merge. It is written and tested on a scratch database, not applied.
 
 ## Going live (2026-10-19 to 2026-11-10)
 
@@ -104,6 +112,9 @@ Each cloud build is signed with a new debug key, so the phone needs the old app 
 Push to `main` on GitHub and Vercel redeploys on its own. A database change goes in a new numbered migration in `supabase/migrations/` (never edit one that has already run). Apply it to the Supabase project, and add it to the list in `docs/SETUP.md`.
 
 ## Open items
+
+- **Migration 005:** apply `005_sources_and_plans.sql` to the live Supabase project before stage 3 goes live.
+- **Note uploads over 4.5 MB:** Vercel caps a request body at about 4.5 MB, so a large PDF note sent through Magic + or the sync script may fail even though the app allows 25 MB. Textbook PDFs avoid this by going straight to Storage; notes could do the same later.
 
 - **Signed release build:** not made yet. It's needed before sharing the app or publishing to Google Play.
 - **Test accounts:** a few empty guest accounts from testing sit in Supabase Authentication, plus one with a sample digoxin note. They're harmless and can be deleted under Authentication > Users.

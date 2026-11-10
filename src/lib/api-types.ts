@@ -30,6 +30,8 @@ export type LessonCardView = {
   title: string;
   body?: string;
   bullets?: string[];
+  // Where the card's facts came from, e.g. "From Pharm notebook: Cardiac notes" or "Foundations, pp. 45-49".
+  caption?: string;
 };
 
 export type ChoiceView = { id: string; text: string };
@@ -110,10 +112,93 @@ export type TrendWeek = { weekStart: string; attempts: number; correct: number; 
 export type NoteSourceView = {
   id: string;
   title: string;
+  notebookId: string | null;
   externalKey: string | null;
   contentHash: string | null;
   chunks: number;
   createdAt: string;
+};
+
+export const NOTEBOOK_COLORS = ["violet", "sky", "emerald", "amber", "rose", "cyan"] as const;
+export type NotebookColor = (typeof NOTEBOOK_COLORS)[number];
+
+export type NotebookView = { id: string; name: string; color: NotebookColor; sources: number; createdAt: string };
+
+// ---------------------------------------------------------------------------
+// Whole textbook PDFs
+// ---------------------------------------------------------------------------
+
+export type TextbookPartState = "uploaded" | "processing" | "done" | "no_text" | "failed";
+
+export type TextbookPartView = { part: number; state: TextbookPartState; pages: number | null; chunks: number; error: string | null };
+
+export type TextbookView = {
+  id: string;
+  title: string;
+  courseId: string;
+  stones: number;
+  pdf: { parts: number | null; uploaded: TextbookPartView[]; passages: number; passagesLinked: number } | null;
+};
+
+export type ProcessPartResult = {
+  part: TextbookPartView;
+  passagesLinked: number;
+  stonesLinked: number;
+  // True once every part of the book has been read.
+  complete: boolean;
+  message: string;
+};
+
+// ---------------------------------------------------------------------------
+// Course plans
+// ---------------------------------------------------------------------------
+
+export type PlanCoverage = "full" | "partial" | "outline_only";
+
+export type PlanSourceRefs = {
+  textbookPages: { book: string; pages: string }[];
+  notebooks: { name: string; notes: number }[];
+  questions: number;
+};
+
+export type PlanWeekView = {
+  week: number;
+  title: string;
+  goals: string[];
+  stones: { id: string; title: string; status: StoneStatus }[];
+  sources: PlanSourceRefs;
+  coverage: PlanCoverage;
+  // NCLEX-style questions that close the week, drawn from its stones' lessons.
+  checkpoint: PracticeView[];
+};
+
+export type CoursePlanView = {
+  courseId: string;
+  version: number;
+  createdAt: string;
+  summary: string;
+  weeks: PlanWeekView[];
+  // The student added or removed a source since this plan was drafted.
+  stale: boolean;
+  sourceCounts: { textbookPassages: number; notes: number; questions: number };
+};
+
+// ---------------------------------------------------------------------------
+// Ask about this card, and search
+// ---------------------------------------------------------------------------
+
+export type AskSource = { kind: "note" | "textbook"; label: string };
+
+export type AskAnswer = { id: string; answer: string; inScope: boolean; sources: AskSource[] };
+
+export type SearchResultKind = "stone" | "note" | "textbook" | "question";
+
+export type SearchResult = {
+  kind: SearchResultKind;
+  id: string;
+  stone: { id: string; title: string; status: StoneStatus } | null;
+  title: string;
+  snippet: string;
 };
 
 export type ApiErrorBody = { error: { code: string; message: string } };

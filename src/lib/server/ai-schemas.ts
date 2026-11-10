@@ -164,3 +164,24 @@ export const LessonSchema = z.object({
   checkpoint: BowtieSchema.describe("One NGN mini bowtie on this stone"),
 });
 export type Lesson = z.infer<typeof LessonSchema>;
+
+export const CoursePlanSchema = z.object({
+  summary: z.string().describe("Two sentences on how the course is paced and what it builds toward"),
+  weeks: z
+    .array(
+      z.object({
+        title: z.string().describe("Six words or fewer"),
+        goals: z.array(z.string()).describe("Two to four things the student can do by the end of the week"),
+        stone_refs: z.array(z.string()).describe("The S-numbers of the stones studied this week, in path order"),
+      }),
+    )
+    .describe("Weeks in path order; every stone appears in exactly one week"),
+});
+export type CoursePlan = z.infer<typeof CoursePlanSchema>;
+
+export const AskAnswerSchema = z.object({
+  answer: z.string().describe("A short answer in plain language, 120 words at most"),
+  in_scope: z.boolean().describe("False when the question asks about something outside LPN scope of practice"),
+  cited: z.array(z.number()).describe("The [n] numbers of the sources the answer draws on"),
+});
+export type AskAnswerRaw = z.infer<typeof AskAnswerSchema>;

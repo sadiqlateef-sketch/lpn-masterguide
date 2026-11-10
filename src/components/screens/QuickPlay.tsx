@@ -43,9 +43,11 @@ type QuickPlayProps = {
   state: QuickPlayState;
   setState: React.Dispatch<React.SetStateAction<QuickPlayState>>;
   onDone: (result: CompleteResult) => void;
+  // A week checkpoint (not a lesson): the last screen just closes the round instead of finishing a stone.
+  onRoundDone?: (right: number, total: number) => void;
 };
 
-export function QuickPlay({ stoneId, stoneTitle, items, state, setState, onDone }: QuickPlayProps) {
+export function QuickPlay({ stoneId, stoneTitle, items, state, setState, onDone, onRoundDone }: QuickPlayProps) {
   const item = items[state.index];
 
   const check = async () => {
@@ -88,9 +90,15 @@ export function QuickPlay({ stoneId, stoneTitle, items, state, setState, onDone 
             {state.error}
           </p>
         )}
-        <GlossyButton variant="emerald" size="lg" onClick={finish} disabled={state.finishing}>
-          {state.finishing ? "Saving..." : "Finish lesson"}
-        </GlossyButton>
+        {onRoundDone ? (
+          <GlossyButton variant="emerald" size="lg" onClick={() => onRoundDone(right, items.length)}>
+            Done
+          </GlossyButton>
+        ) : (
+          <GlossyButton variant="emerald" size="lg" onClick={finish} disabled={state.finishing}>
+            {state.finishing ? "Saving..." : "Finish lesson"}
+          </GlossyButton>
+        )}
       </div>
     );
   }

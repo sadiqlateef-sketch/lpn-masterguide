@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import { GlassCard } from "@/components/glass/GlassCard";
 import { GlossyButton } from "@/components/glass/GlossyButton";
 import { GlassStoryPlayer, type StoryCard } from "@/components/glass/GlassStoryPlayer";
+import { AskSheet } from "./AskSheet";
 import { EMPTY_QUICK_PLAY, QuickPlay, type QuickPlayState } from "./QuickPlay";
 
 type LessonPlayerProps = {
@@ -27,6 +28,8 @@ export function LessonPlayer({ stone, pane = false, onClose, onFinished }: Lesso
   const [error, setError] = useState<string | null>(null);
   const [quickPlay, setQuickPlay] = useState<QuickPlayState>(EMPTY_QUICK_PLAY);
   const [showHint, setShowHint] = useState(true);
+  const [asking, setAsking] = useState<{ stoneId: string; cardId: string; cardTitle: string } | null>(null);
+  const closeAsk = useCallback(() => setAsking(null), []);
 
   // The swipe hint shows for the first few lessons, then gets out of the way.
   const stoneId = stone?.id;
@@ -40,6 +43,7 @@ export function LessonPlayer({ stone, pane = false, onClose, onFinished }: Lesso
     setLesson(null);
     setError(null);
     setQuickPlay(EMPTY_QUICK_PLAY);
+    setAsking(null);
     try {
       setLesson(await api.lesson(stoneId));
     } catch (e) {
@@ -81,7 +85,17 @@ export function LessonPlayer({ stone, pane = false, onClose, onFinished }: Lesso
 
   return (
     <>
-      <GlassStoryPlayer cards={cards} open={ready} onClose={onClose} onComplete={onClose} showHint={showHint} pane={pane} />
+      <GlassStoryPlayer
+        cards={cards}
+        open={ready}
+        onClose={onClose}
+        onComplete={onClose}
+        showHint={showHint}
+        pane={pane}
+        paused={asking !== null}
+        onAsk={lesson ? (card) => setAsking({ stoneId: lesson.stoneId, cardId: card.id, cardTitle: card.title }) : undefined}
+      />
+      <AskSheet target={ready ? asking : null} onClose={closeAsk} />
       <AnimatePresence>
         {stone && !ready && (
           <motion.div

@@ -170,6 +170,7 @@ export function AppShell() {
         onClose={() => setMagic((m) => ({ ...m, open: false }))}
         onAdded={refreshProgress}
         onAccountChanged={refreshProgress}
+        onOpenStone={setLessonStone}
       />
       <LessonPlayer stone={lessonStone} pane={wide} onClose={closeLesson} onFinished={finishLesson} />
     </AmbientCanvas>

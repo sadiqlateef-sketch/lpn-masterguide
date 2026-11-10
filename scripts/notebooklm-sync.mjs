@@ -6,6 +6,9 @@
 //
 //   node scripts/notebooklm-sync.mjs --folder ~/NotebookLM --app https://your-app.example.com
 //
+// Each top-level subfolder is a notebook in the app ("Pharm notebook/", "Fundamentals notebook/");
+// files at the top of the folder go into "My notes".
+//
 // New files are added, edited files replace their old copy (and the lessons that used them rebuild),
 // and unchanged files are skipped. Add --prune to also remove notes whose file you deleted, and
 // --watch to keep running and re-check the folder every 20 seconds (or --watch 60 for every minute).
@@ -22,7 +25,7 @@ import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
-import { hashFile, isSettled, listNoteFiles, parseArgs, parseEnvFile, planSync } from "./notebooklm-sync-lib.mjs";
+import { hashFile, isSettled, listNoteFiles, notebookFor, parseArgs, parseEnvFile, planSync } from "./notebooklm-sync-lib.mjs";
 
 const USAGE = `Usage: node scripts/notebooklm-sync.mjs --folder <dir> --app <url> [--prune] [--watch [seconds]] [--dry-run]`;
 
@@ -111,6 +114,8 @@ function createApi(appUrl, auth) {
       const form = new FormData();
       form.append("as", "notes");
       form.append("externalKey", file.key);
+      const notebook = notebookFor(file.key);
+      if (notebook) form.append("notebook", notebook);
       form.append("files", new Blob([readFileSync(file.abs)], { type: file.mediaType }), path.basename(file.abs));
       return call("POST", "/api/magic-ingest", form);
     },

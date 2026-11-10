@@ -99,7 +99,7 @@ export function NotebookSyncPanel({ onAccountChanged }: Props) {
         </li>
         <li className="flex gap-3">
           <Step n={2} />
-          <span>Export your NotebookLM notes as PDF, markdown or text into one folder on your computer.</span>
+          <span>Export your NotebookLM notes as PDF, markdown or text into one folder on your computer. Give each notebook its own subfolder (like &ldquo;Pharm notebook&rdquo;) and the app files them the same way.</span>
         </li>
         <li className="flex gap-3">
           <Step n={3} />

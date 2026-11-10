@@ -65,12 +65,12 @@ All 20 items, no database change. What each one became is listed in the pull req
 19. **Empty states:** first-run screens on Path and Readiness that point to Magic +.
 20. **Loading skeletons:** a shimmering lesson card while a new lesson is written.
 
-## Stage 3: Sources, textbooks and the course plan
+## Stage 3: Sources, textbooks and the course plan (built on `claude/sources-and-plans`)
 
 ### What the owner gets
 
 - **Several NotebookLM notebooks.** Each export is filed under a named notebook (for example "Fundamentals notebook", "Pharm notebook"). Magic + asks which notebook when it isn't obvious, and the folder sync script maps each subfolder to a notebook. Lesson Card 4 cites the notebook and source by name.
-- **A whole textbook.** Magic + takes the school book's PDF, split into parts up to 25 MB each (the app joins them; a helper on the Magic + sheet splits a big PDF on the phone before upload, and the sync script splits on the computer). Pages are extracted with `unpdf`, chunked by heading, embedded with Voyage, and linked to the matching stones. Lessons then draw on the real chapter text instead of the table of contents alone.
+- **A whole textbook.** Magic + takes the school book's PDF. The phone splits a big PDF into parts (about 20 MB each, 45 MB at most, up to 40 parts) and uploads them straight to the student's private Storage folder, because Vercel caps a request at about 4.5 MB. The server reads one part at a time: pages are extracted with `unpdf`, chunked by heading, embedded with Voyage, and linked to the matching stones of that book. Lessons then draw on the real chapter text instead of the table of contents alone. Sending a book PDF from the sync script is left for later.
 - **A course plan that deepens with every source.** From the books, notebooks and decks a student has added, Claude drafts a course plan: weeks, each with its stones, the textbook pages and notes behind them, and an NCLEX checkpoint at the end. Adding a source re-drafts the plan, and the plan shows which sources fed each week and what's thin. A plan is never more detailed than its sources: a week with no source says so instead of guessing.
 - **Ask about this card (F11).** A chat button on any lesson card answers follow-up questions from that stone's sources, in LPN scope, with the source named.
 - **Search (F19).** One search box (inside the Magic + sheet, keeping the dock at three buttons) finds stones, notes, textbook passages and questions, by meaning and by words.
@@ -78,16 +78,16 @@ All 20 items, no database change. What each one became is listed in the pull req
 ### Data model (migration `005_sources_and_plans.sql`)
 
 - `notebooks` (id, user_id, name, color, created_at). `note_sources.notebook_id` (nullable; existing sources go in a "My notes" notebook created by the migration).
-- `textbook_files` (id, user_id, textbook_id, part_number, storage_path, pages, content_hash, state). `textbook_chunks` (id, user_id, textbook_id, file_id, page_from, page_to, heading, content, embedding vector(1024), stone_id). HNSW index on the embedding.
-- `course_plans` (id, user_id, course_id, version, source_fingerprint, model, created_at) and `course_plan_weeks` (plan_id, week_number, title, goals text[], stone_ids uuid[], source_refs jsonb, checkpoint_item_ids uuid[]).
+- `textbooks.pdf_parts`. `textbook_files` (id, user_id, textbook_id, part_number, storage_path, bytes, content_hash, page_offset, pages, chunks, state, error). `textbook_chunks` (id, user_id, textbook_id, file_id, chunk_index, page_from, page_to, heading, content, embedding vector(1024), stone_id). HNSW index on the embedding. Functions `link_textbook_chunks`, `stone_textbook_chunks`, `match_textbook_chunks`. A Storage update policy on the student's own folder, so a re-split book overwrites its parts.
+- `course_plans` (id, user_id, course_id, version, source_fingerprint, model, summary, created_at) and `course_plan_weeks` (plan_id, week_number, title, goals text[], stone_ids uuid[], source_refs jsonb, coverage). A week's checkpoint questions are picked when the plan is read, from its stones' practice items, so they never go stale. Function `course_plan_sources` counts what stands behind each stone.
+- `search_study(q, query_embedding)` searches stones, notes, textbook passages and saved questions by meaning and by words.
 - `card_questions` (id, user_id, stone_id, card_id, question, answer, source_refs jsonb, created_at) for Ask about this card.
 - Row-level security on every new table, same pattern as `note_sources`.
 
 ### Routes
 
 - `POST /api/notebooks`, `GET /api/notebooks`, `PATCH /api/notebooks/{id}`, `DELETE /api/notebooks/{id}`.
-- `POST /api/magic-ingest` gains `as=textbook_pdf` with `textbookId` and `part`.
-- `POST /api/textbooks/{id}/process` (extract, chunk, embed, link; resumable per part).
+- `GET /api/textbooks` (books with their PDF progress), `POST /api/textbooks/{id}/parts` (records a part already uploaded to Storage, with its sha256) and `POST /api/textbooks/{id}/process` (extract, chunk, embed, link; one part per call, resumable). Notes keep using `POST /api/magic-ingest`, now with `notebookId` or `notebook`.
 - `POST /api/course-plans/generate` and `GET /api/course-plans/{courseId}`.
 - `POST /api/lessons/ask` (stone id, card id, question).
 - `GET /api/search?q=`.
@@ -102,7 +102,7 @@ All 20 items, no database change. What each one became is listed in the pull req
 
 ### Tests
 
-Migration tests for the new tables and RLS; unit tests for PDF chunking by heading, part joining and plan fingerprints; route tests for each new route with Claude and Voyage faked; an integration test that uploads a two-part PDF and checks the plan cites both parts.
+Migration tests for the new tables, functions and RLS; unit tests for PDF chunking by heading, splitting into parts, page numbers across parts, plan weeks, sources, coverage and fingerprints, Ask citations and search; a sign-in test for each new route. Still to write: an integration test that uploads a two-part PDF and checks the plan cites both parts (the integration suite needs PostgREST, which the build environment couldn't download).
 
 ## Stage 4: Study planner, spaced review and habits
 

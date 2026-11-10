@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { contentHash, normalizeExternalKey } from "@/lib/server/ingest/notes";
-import { hashBytes, hashFile, isSettled, listNoteFiles, mediaTypeFor, parseArgs, parseEnvFile, planSync } from "../scripts/notebooklm-sync-lib.mjs";
+import { hashBytes, hashFile, isSettled, listNoteFiles, mediaTypeFor, notebookFor, parseArgs, parseEnvFile, planSync } from "../scripts/notebooklm-sync-lib.mjs";
 
 const dir = mkdtempSync(path.join(tmpdir(), "nlm-sync-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -76,5 +76,13 @@ describe("NotebookLM folder sync helpers", () => {
     expect(normalizeExternalKey("\\\\Pharm\\Cardiac\\digoxin.md")).toBe("Pharm/Cardiac/digoxin.md");
     expect(normalizeExternalKey("  ")).toBeNull();
     expect(() => normalizeExternalKey("x".repeat(501))).toThrow(/too long/);
+  });
+
+  it("files each top-level subfolder as its own notebook", () => {
+    expect(notebookFor("Pharm notebook/week 3/digoxin.md")).toBe("Pharm notebook");
+    expect(notebookFor("  Fundamentals   notebook /a.md")).toBe("Fundamentals notebook");
+    expect(notebookFor("loose.md")).toBeNull();
+    expect(notebookFor("/odd.md")).toBeNull();
+    expect(notebookFor(`${"x".repeat(100)}/a.md`)).toHaveLength(80);
   });
 });

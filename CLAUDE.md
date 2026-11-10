@@ -18,7 +18,7 @@ Build one phase at a time and stop for the owner's approval after each.
 3. Screens (`PathMap`, `MagicAddSheet`, `ReadinessRings`) and the lesson generator (`/api/lessons/generate`). (done)
 4. Capacitor Android config, camera, TTS, APK build scripts. (done)
 
-The next update is planned in `docs/ROADMAP.md` as six stages, each on its own branch with the owner's approval before merge. Stage 1 (the roadmap) and stage 2 (the 20 UI fixes) are on `claude/ui-polish`.
+The next update is planned in `docs/ROADMAP.md` as six stages, each on its own branch with the owner's approval before merge. Stages 1 and 2 (the roadmap and the 20 UI fixes) are merged. Stage 3 (notebooks, whole textbooks, course plans, Ask and search) is on `claude/sources-and-plans`.
 
 ## Working style
 
@@ -34,7 +34,7 @@ The owner wants speed and thoroughness over saving tokens: build complete featur
 - Claude calls go through `generateStructured` (Zod schema in `src/lib/server/ai-schemas.ts`, streaming, `fallbacks: "default"`, cached system prompt) or `researchWithWebSearch`. Keep schemas free of length limits; enforce limits in code after parsing.
 - Embeddings: Voyage `voyage-3.5`, 1024 dimensions, `document` for stored text and `query` for questions. Matching thresholds live in `path.ts` / `uworld.ts`.
 - Multi-row writes that must succeed together go in a SQL function (see `create_syllabus` in `002_magic_add.sql`).
-- Uploads: up to 10 files; photos JPEG/PNG/WebP/GIF under 5 MB (the Phase 3 client must downscale camera photos and convert HEIC); PDFs, markdown and text under 25 MB. Originals go to the private `uploads` bucket under `<user id>/ingest/<item id>/`.
+- Uploads: up to 10 files; photos JPEG/PNG/WebP/GIF under 5 MB (the Phase 3 client must downscale camera photos and convert HEIC); PDFs, markdown and text under 25 MB. On Vercel a request body is capped at about 4.5 MB, so larger files must go straight to Storage the way textbook PDFs do. Originals go to the private `uploads` bucket under `<user id>/ingest/<item id>/`.
 
 ## Testing
 
@@ -52,6 +52,15 @@ The owner wants speed and thoroughness over saving tokens: build complete featur
 - Readiness math (`src/lib/server/progress.ts`) is the app's own estimate and is labeled as one in the UI. HESI publishes no formula.
 - NotebookLM folder sync: `scripts/notebooklm-sync.mjs` uploads with `as=notes` and `externalKey` (the file's path in the folder). The server stores a sha256 `content_hash`, skips unchanged files, and saves the new copy before deleting the old one.
 - Modals (lesson, Magic +) make the page behind them `inert`.
+
+## Sources and plans (stage 3)
+
+- Notebooks (`src/lib/server/notebooks.ts`): every note source belongs to one; `resolveNotebook` picks it by id, by name (the sync script sends the top-level subfolder as `notebook`), or "My notes". Deleting a notebook deletes its notes on purpose; the database only clears the link.
+- Whole textbook PDFs never pass through the API (Vercel caps a request at about 4.5 MB). The phone splits the PDF with `pdf-lib` (`src/lib/client/textbook-upload.ts`, sizes in `src/lib/textbook-parts.ts`: 20 MB target, 45 MB cap, 40 parts), uploads each part to `uploads/<user>/textbooks/<book>/part-N.pdf`, registers it (`POST /api/textbooks/{id}/parts` with its sha256), then asks the server to read it (`POST /api/textbooks/{id}/process`). Parts are read in order so page numbers carry over; a part already read is skipped, so an interrupted upload resumes.
+- Reading a part (`src/lib/server/books/textbook-pdf.ts`): `unpdf` per page, `chunkPdfPages` (`src/lib/server/text/pdf-chunk.ts`) splits by headings it spots from line shapes and drops running headers and page numbers, Voyage embeds, `link_textbook_chunks` links each passage to the nearest stone of the same book. Scanned parts (almost no text) are marked `no_text`.
+- Lessons read up to 6 linked passages (`stone_textbook_chunks`) and the notes' notebook names; both are in the fingerprint. Card captions name the book pages and the notebook (`lessonCaptions`).
+- Course plans (`src/lib/server/course-plan.ts`): Claude only groups stones (by S-number) into weeks with titles and goals; `tidyPlan` keeps every stone once and in path order. The server, not the model, fills each week's sources and coverage from `course_plan_sources`. A week's checkpoint is picked at read time from its stones' practice items. A plan is stale when its source fingerprint changes, and the Plan view redrafts it.
+- Ask about this card (`src/lib/server/ask.ts`) and search (`src/lib/server/search.ts`, SQL `search_study`): citations are checked in code against the numbered sources.
 
 ## Android app (Phase 4)
 
