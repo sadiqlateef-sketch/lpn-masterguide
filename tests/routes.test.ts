@@ -36,6 +36,17 @@ import { DELETE as drugCardDelete, GET as drugCardGet } from "@/app/api/drug-car
 import { GET as mistakesGet } from "@/app/api/mistakes/route";
 import { PUT as mistakeNote } from "@/app/api/mistakes/[itemId]/note/route";
 import { GET as ngnGet, POST as ngnPost } from "@/app/api/stones/[stoneId]/ngn/route";
+import { GET as skillsGet } from "@/app/api/skills/route";
+import { GET as skillGet } from "@/app/api/skills/[skillId]/route";
+import { POST as skillRun } from "@/app/api/skills/[skillId]/runs/route";
+import { PUT as skillSignoff } from "@/app/api/skills/[skillId]/signoff/route";
+import { GET as prepsGet, POST as prepsPost } from "@/app/api/clinical-preps/route";
+import { DELETE as prepDelete, GET as prepGet } from "@/app/api/clinical-preps/[prepId]/route";
+import { GET as plansGet, POST as plansPost } from "@/app/api/care-plans/route";
+import { DELETE as planDelete, GET as planGetOne, PUT as planPut } from "@/app/api/care-plans/[planId]/route";
+import { POST as planCheck } from "@/app/api/care-plans/[planId]/check/route";
+import { GET as shareGet, POST as sharePost } from "@/app/api/share/route";
+import { DELETE as shareDelete } from "@/app/api/share/[shareId]/route";
 
 const ID = "6f1c2c1e-4c7b-4a4e-9a51-0c6f3a1d2b7e";
 const json = (body: unknown) => ({ method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json" } });
@@ -87,6 +98,23 @@ const handlers = [
   ["mistake note", () => mistakeNote(new Request(`http://x/api/mistakes/${ID}/note`, { ...json({ note: "x" }), method: "PUT" }), { params: Promise.resolve({ itemId: ID }) })],
   ["stone NGN GET", () => ngnGet(new Request(`http://x/api/stones/${ID}/ngn`), { params: Promise.resolve({ stoneId: ID }) })],
   ["stone NGN POST", () => ngnPost(new Request(`http://x/api/stones/${ID}/ngn`, { method: "POST" }), { params: Promise.resolve({ stoneId: ID }) })],
+  ["skills GET", () => skillsGet(new Request("http://x/api/skills"))],
+  ["skill GET", () => skillGet(new Request("http://x/api/skills/vital_signs"), { params: Promise.resolve({ skillId: "vital_signs" }) })],
+  ["skill run", () => skillRun(new Request("http://x/api/skills/vital_signs/runs", json({ done: [0], confidence: "on_my_own" })), { params: Promise.resolve({ skillId: "vital_signs" }) })],
+  ["skill signoff", () => skillSignoff(new Request("http://x/api/skills/vital_signs/signoff", { ...json({ signedOffOn: null }), method: "PUT" }), { params: Promise.resolve({ skillId: "vital_signs" }) })],
+  ["clinical-preps GET", () => prepsGet(new Request("http://x/api/clinical-preps"))],
+  ["clinical-preps POST", () => prepsPost(new Request("http://x/api/clinical-preps", json({ title: "Thursday", diagnoses: ["Heart failure"] })))],
+  ["clinical-prep GET", () => prepGet(new Request(`http://x/api/clinical-preps/${ID}`), { params: Promise.resolve({ prepId: ID }) })],
+  ["clinical-prep DELETE", () => prepDelete(new Request(`http://x/api/clinical-preps/${ID}`, { method: "DELETE" }), { params: Promise.resolve({ prepId: ID }) })],
+  ["care-plans GET", () => plansGet(new Request("http://x/api/care-plans"))],
+  ["care-plans POST", () => plansPost(new Request("http://x/api/care-plans", json({ situation: "Older adult with heart failure" })))],
+  ["care-plan GET", () => planGetOne(new Request(`http://x/api/care-plans/${ID}`), { params: Promise.resolve({ planId: ID }) })],
+  ["care-plan PUT", () => planPut(new Request(`http://x/api/care-plans/${ID}`, { ...json({ problems: [] }), method: "PUT" }), { params: Promise.resolve({ planId: ID }) })],
+  ["care-plan DELETE", () => planDelete(new Request(`http://x/api/care-plans/${ID}`, { method: "DELETE" }), { params: Promise.resolve({ planId: ID }) })],
+  ["care-plan check", () => planCheck(new Request(`http://x/api/care-plans/${ID}/check`, { method: "POST" }), { params: Promise.resolve({ planId: ID }) })],
+  ["share GET", () => shareGet(new Request("http://x/api/share"))],
+  ["share POST", () => sharePost(new Request("http://x/api/share", json({ kind: "lesson", stoneId: ID })))],
+  ["share DELETE", () => shareDelete(new Request(`http://x/api/share/${ID}`, { method: "DELETE" }), { params: Promise.resolve({ shareId: ID }) })],
 ] as const;
 
 describe("API routes", () => {

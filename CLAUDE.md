@@ -80,13 +80,21 @@ The owner wants speed and thoroughness over saving tokens: build complete featur
 
 ## Games and practice (stage 6a)
 
-- Screens: the dock's Practice tab is `src/components/screens/practice/PracticeHub.tsx`; each feature opens a full-screen sheet from the same folder (`GameSheet`, `ExamSheet`, `MistakesSheet`, `DrugCardsSheet`, `NgnSheet`, all on `FullSheet`). `EndingQuestions` wraps `QuickPlay` with `onRoundDone` for questions that close a round or card. `PracticeItemBody` renders any question type for Quick Play and exams.
+- Screens: Practice is `src/components/screens/practice/PracticeHub.tsx`, shown under the readiness rings on the Readiness screen (not a dock tab; the dock stays at three buttons); each feature opens a full-screen sheet from the same folder (`GameSheet`, `ExamSheet`, `MistakesSheet`, `DrugCardsSheet`, `NgnSheet`, all on `FullSheet`). `EndingQuestions` wraps `QuickPlay` with `onRoundDone` for questions that close a round or card. `PracticeItemBody` renders any question type for Quick Play and exams.
 - Games: `src/lib/server/games/` has `bank.ts` (fixed CDC PPE order, isolation, scope and lab content), `medmath.ts` (problems built in code, `parseAnswer`, `checkMedMath`), `build.ts` (building and grading rounds, `GAME_INFO`) and `rounds.ts` (start, answer, endings, list). The answer key stays in `game_rounds.payload` and never reaches the client. A round is answered once (conditional update on `answered_at is null`).
 - Round endings prefer the student's own questions on the round's stones or client need; otherwise two `round_mcq` items are written and stored with `client_need_id` and no stone.
 - NGN: `src/lib/server/ngn.ts` writes four matrix/cloze/highlight/ordered items per call (max 12 per stone); `practice.ts` grades them (`gradeMatrix`, `gradeCloze`, `gradeHighlight`, `gradeOrdered`). Every new question carries `option_rationales`.
 - Exams: `src/lib/server/exams.ts` (EAP ability estimate on a grid, stop rule at a 95% band around 0, client-need weighting). The verdict must always say it isn't an NCLEX prediction.
 - Drug cards: `src/lib/server/drug-cards.ts`. A field is marked from the student's sources only when its quote is real (`checkedQuotes`).
 - Readiness: `readiness_by_client_need()` counts stone-tagged attempts, stoneless items by their own client need, and game rounds (once each, right at 80%).
+
+## Clinical, offline and sharing (stage 6b)
+
+- Skills: `src/lib/server/skills/bank.ts` holds the checklists in code (steps with why and critical flags, two questions each); `skills.ts` saves the questions as `skill_mcq` items the first time a skill opens, plus runs and sign-offs.
+- Clinical: `src/lib/server/clinical.ts` has the prep sheet and care plan. `findIdentifier` refuses client identifiers with a 422 `identifier`; keep it in front of every model call that takes typed clinical text. Questions are `clinical_mcq` items with a client need and no stone.
+- Sharing: `src/lib/server/share.ts`. A link stores a trimmed copy (`sharedCards`, `sharedItems`, `sharedPayload`): no notebook card, no captions, no UWorld twins, renamed question ids. Public reads go only through the `shared_deck(token)` function with the anon key; there is no service role key on the server. The page is `/share?t=` so it works in the static phone build.
+- Offline: `src/lib/client/offline.ts` (IndexedDB). `api.path` and `api.lesson` fall back to the saved copy when offline; Quick Play queues answers and completions in an outbox that `syncOutbox()` sends after sign-in and when the phone comes back online.
+- Screens: `ChapterTools` (Save offline, Listen) under each chapter on the path; `AudioSheet`, `SkillsSheet`, `ClinicalSheet` and `SharePanel` (on `NgnSheet`) in `screens/practice/`. Playlist helpers are in `src/lib/ui/audio.ts`.
 
 ## Android app (Phase 4)
 

@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, Check, CheckCircle2, PartyPopper, X, XCircle } from "lucide-react";
-import type { BowtieAnswer, ChoiceView, CompleteResult, GradeResult, PracticeView } from "@/lib/api-types";
-import { api } from "@/lib/client/api";
+import { ArrowRight, Check, CheckCircle2, CloudOff, PartyPopper, X, XCircle } from "lucide-react";
+import type { AttemptRequest, BowtieAnswer, ChoiceView, CompleteResult, GradeResult, PracticeView } from "@/lib/api-types";
+import { api, isOfflineError } from "@/lib/client/api";
+import { queueAttempt, queueComplete } from "@/lib/client/offline";
 import { haptic } from "@/lib/client/native";
 import { attemptBody, EMPTY_ANSWERS, isAnswerReady, orderFor, togglePick, type AnswerState } from "@/lib/quick-play";
 import { cn } from "@/lib/cn";
@@ -21,6 +22,9 @@ export type QuickPlayState = AnswerState & {
   checking: boolean;
   finishing: boolean;
   completion: CompleteResult | null;
+  // Answered while offline: saved on the phone and checked once it's back online.
+  queued: Record<string, true>;
+  finishQueued: boolean;
   error: string | null;
 };
 
@@ -31,6 +35,8 @@ export const EMPTY_QUICK_PLAY: QuickPlayState = {
   checking: false,
   finishing: false,
   completion: null,
+  queued: {},
+  finishQueued: false,
   error: null,
 };
 
@@ -43,19 +49,27 @@ type QuickPlayProps = {
   onDone: (result: CompleteResult) => void;
   // A week checkpoint (not a lesson): the last screen just closes the round instead of finishing a stone.
   onRoundDone?: (right: number, total: number) => void;
+  // Checks an answer somewhere other than the student's own history (a share link). Nothing waits offline then.
+  grader?: (body: AttemptRequest) => Promise<GradeResult>;
 };
 
-export function QuickPlay({ stoneId, stoneTitle, items, state, setState, onDone, onRoundDone }: QuickPlayProps) {
+export function QuickPlay({ stoneId, stoneTitle, items, state, setState, onDone, onRoundDone, grader }: QuickPlayProps) {
   const item = items[state.index];
 
   const check = async () => {
     if (!item || state.checking) return;
     setState((s) => ({ ...s, checking: true, error: null }));
+    const body = attemptBody(item, state);
     try {
-      const result = await api.attempt(attemptBody(item, state));
+      const result = await (grader ?? api.attempt)(body);
       void haptic(result.correct ? "success" : "error");
       setState((s) => ({ ...s, checking: false, results: { ...s.results, [item.id]: result } }));
     } catch (error) {
+      if (!grader && isOfflineError(error)) {
+        await queueAttempt(body).catch(() => undefined);
+        setState((s) => ({ ...s, checking: false, queued: { ...s.queued, [item.id]: true } }));
+        return;
+      }
       setState((s) => ({ ...s, checking: false, error: error instanceof Error ? error.message : "That didn't save. Try again." }));
     }
   };
@@ -66,21 +80,53 @@ export function QuickPlay({ stoneId, stoneTitle, items, state, setState, onDone,
       const completion = await api.complete(stoneId);
       setState((s) => ({ ...s, finishing: false, completion }));
     } catch (error) {
+      if (isOfflineError(error)) {
+        await queueComplete(stoneId).catch(() => undefined);
+        setState((s) => ({ ...s, finishing: false, finishQueued: true }));
+        return;
+      }
       setState((s) => ({ ...s, finishing: false, error: error instanceof Error ? error.message : "That didn't save. Try again." }));
     }
   };
 
   if (state.completion) return <Completion result={state.completion} stoneTitle={stoneTitle} onDone={() => onDone(state.completion!)} />;
 
+  if (state.finishQueued) {
+    return (
+      <div className="flex flex-col items-center gap-4 text-center" role="status">
+        <CloudOff aria-hidden className="h-12 w-12 text-sky-200" strokeWidth={2.2} />
+        <p className="text-lg font-semibold">Saved on this phone.</p>
+        <p className="text-white/75">Your answers get checked and this lesson finishes as soon as you&apos;re back online.</p>
+        <GlossyButton
+          variant="emerald"
+          size="lg"
+          onClick={() => onDone({ status: "ready", mastered: false, score: 0, answered: Object.keys(state.queued).length, unlockedStone: null })}
+        >
+          Done
+        </GlossyButton>
+      </div>
+    );
+  }
+
   if (!item) {
     const right = items.filter((i) => state.results[i.id]?.correct).length;
+    const checked = items.filter((i) => state.results[i.id]).length;
+    const waiting = items.length - checked;
     return (
       <div className="flex flex-col items-center gap-4 text-center">
         <p className="text-5xl font-black">
           {right}
-          <span className="text-2xl text-white/50"> / {items.length}</span>
+          <span className="text-2xl text-white/50"> / {checked}</span>
         </p>
-        <p className="text-lg text-white/80">{right === items.length ? "Perfect round!" : right / items.length >= 0.8 ? "Great job!" : "Good practice. Every miss teaches you something."}</p>
+        <p className="text-lg text-white/80">
+          {waiting > 0
+            ? `${waiting} answer${waiting === 1 ? "" : "s"} saved on this phone, to be checked when you're back online.`
+            : right === items.length
+              ? "Perfect round!"
+              : right / items.length >= 0.8
+                ? "Great job!"
+                : "Good practice. Every miss teaches you something."}
+        </p>
         {state.error && (
           <p role="alert" className="text-sm font-semibold text-rose-200">
             {state.error}
@@ -100,6 +146,7 @@ export function QuickPlay({ stoneId, stoneTitle, items, state, setState, onDone,
   }
 
   const result = state.results[item.id];
+  const queued = !result && state.queued[item.id];
   const ready = isAnswerReady(item, state);
 
   return (
@@ -123,13 +170,19 @@ export function QuickPlay({ stoneId, stoneTitle, items, state, setState, onDone,
       </motion.div>
 
       {result && <Feedback result={result} />}
+      {queued && (
+        <p role="status" className="flex items-start gap-2 rounded-2xl bg-sky-400/10 p-4 text-sm font-semibold text-sky-100">
+          <CloudOff aria-hidden className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2.5} />
+          You&apos;re offline. Your answer is saved on this phone and gets checked when you&apos;re back online.
+        </p>
+      )}
       {state.error && (
         <p role="alert" className="text-sm font-semibold text-rose-200">
           {state.error}
         </p>
       )}
 
-      {result ? (
+      {result || queued ? (
         <GlossyButton
           variant="emerald"
           size="lg"

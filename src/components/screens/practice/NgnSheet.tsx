@@ -8,6 +8,7 @@ import { GlassCard } from "@/components/glass/GlassCard";
 import { GlossyButton } from "@/components/glass/GlossyButton";
 import { EndingQuestions } from "./Ending";
 import { Busy, errorText, FullSheet, Problem } from "./FullSheet";
+import { SharePanel } from "./SharePanel";
 
 // Next Generation NCLEX practice for one stone: matrix, drop-down, highlight and ordered-response
 // questions written from the student's own sources.
@@ -66,6 +67,9 @@ export function NgnSheet({ stone, onClose, onChanged }: { stone: { id: string; t
               <p className="text-lg font-semibold">No NGN questions for this stone yet.</p>
             )}
             <GlossyButton onClick={() => void writeMore(stone.id)}>{phase.items.length ? "Write 4 more" : "Write 4 from my sources"}</GlossyButton>
+            <div className="mt-2 w-full border-t border-white/10 pt-4">
+              <SharePanel stone={stone} />
+            </div>
           </div>
         )}
         {phase.kind === "playing" && stone && (

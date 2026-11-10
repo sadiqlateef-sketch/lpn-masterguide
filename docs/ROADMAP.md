@@ -190,7 +190,7 @@ Stage 6 is split in two so each part can be reviewed and merged on its own. 6a i
 
 ### What the owner gets
 
-A new **Practice** tab in the dock, with:
+A new **Practice** tab in the dock (moved under Readiness in 6b, to keep the dock at three buttons), with:
 
 - **Seven games**, each ending with NCLEX-style questions:
   - **Med match:** pair four to six medications from the stones he has studied with a class, effect or key nursing action. Written from his passages; a note only counts when it quotes them.
@@ -234,9 +234,41 @@ A new **Practice** tab in the dock, with:
 
 `tests/games.test.ts` (med-math answers and coaching, the banks, round building and grading, ending order), `tests/ngn-exams.test.ts` (NGN tidying, grading and hidden answers, the adaptive estimate and stop rule, drug card source marks) and `supabase/tests/006_games_test.sql` (item checks, mistakes, readiness counts, round and exam rules, isolation between students).
 
-## Stage 6b: The remaining features (next)
+## Stage 6b: The remaining features (built on `claude/remaining-features`)
 
-Offline lessons (F12, a downloaded chapter cached on the phone), audio playlist mode (F14), clinical day prep (F15), LPN-scope care plan builder (F16), skills checklists (F17) and share a deck (F20, a read-only link to a lesson or question set, with no personal notes). Its own migration and pull request, after 6a is merged.
+### What the owner gets
+
+- **Practice moves under Readiness.** Stage 6a added a fourth dock button, which broke the three-button dock rule. Practice now sits below the readiness rings on the Readiness screen, and the dock is back to Path, Magic + and Readiness.
+- **Offline lessons (F12):** "Save offline" under a chapter's title on the path keeps its open lessons on the phone. With no signal the path and saved lessons still open, Quick Play answers wait on the phone, and they're checked and counted as soon as he's back online. A banner says when he's offline.
+- **Audio playlist (F14):** "Listen" under a chapter's title reads its lessons aloud card by card, with play, pause, previous and next, then ends with up to six NCLEX-style questions from those lessons.
+- **Skills checklists (F17):** ten core LPN skills (hand hygiene, vital signs, med pass, sterile gloves, fingerstick glucose, subcutaneous and IM injections, Foley care, nasal cannula, bed to chair transfer). Each step says why, critical steps are marked, a run saves which steps he did and how sure he felt, and he can log the date an instructor signed him off. Each skill ends with two NCLEX-style questions.
+- **Clinical day prep (F15):** type the day's diagnoses, medications and skills and get a study sheet: what to watch for, what the LPN does and what to report to the RN for each condition, what to check before each medicine, and key points for each skill. Anything backed by his books or notes is marked "From your sources" with the quote. It ends with NCLEX-style questions.
+- **Care plan builder (F16):** describe the client's situation and get a draft in LPN scope to start from (problem, related to, evidence, goal, actions with reasons, what to report to the RN, evaluation). He edits it, then "Check my plan" gives a verdict, what's done well, up to three fixes and anything outside LPN scope, then two questions.
+- **Share a deck (F20):** on a stone's NGN practice sheet, "Share the lesson" or "Share the questions" makes a read-only link a classmate can open without signing in. They can answer the questions and see whether they were right; nothing they do is saved. Links last 30 days and can be turned off.
+
+### Changes from the plan
+
+- **Share lives on each stone's NGN practice sheet**, not in the lesson header, so the header stays uncluttered.
+- **Shared copies are trimmed.** The notebook card, every source caption and every question written from a missed UWorld question stay out of a link. The link holds a copy made when it's created, so later notes never reach it.
+- **Offline answers are checked later.** Answers never go to the phone, so an offline answer waits and is graded once he's back online, rather than on the phone.
+- **Skills checklists are written in code**, like the game banks, so the steps are reliable. Only his runs and sign-off dates are stored.
+- **No client identifiers.** Clinical prep and care plans refuse text that looks like a name, room or bed, birth date, record number, phone, email or an age over 89, and say why.
+
+### Data model (migration `009_clinical_and_sharing.sql`)
+
+- `practice_items`: new item types `skill_mcq` and `clinical_mcq`.
+- `skill_checks` (one row per run: steps done, confidence) and `skill_signoffs` (one date per skill).
+- `clinical_preps` (input, sheet, sources, question ids) and `care_plans` (situation, plan, feedback, question ids, optional prep).
+- `shared_decks` (a random token, the trimmed copy, expiry and revoked time) and `shared_deck(token)`, which returns a live link's copy to anyone who has the token.
+- Row-level security on all five new tables, owner only.
+
+### Routes
+
+`GET /api/skills`, `GET /api/skills/{id}`, `POST /api/skills/{id}/runs`, `PUT /api/skills/{id}/signoff`, `GET|POST /api/clinical-preps`, `GET|DELETE /api/clinical-preps/{id}`, `GET|POST /api/care-plans`, `GET|PUT|DELETE /api/care-plans/{id}`, `POST /api/care-plans/{id}/check`, `GET|POST /api/share`, `DELETE /api/share/{id}`, and the public `GET /api/shared/{token}` and `POST /api/shared/{token}/answer`. The shared page is `/share?t=` so it works in the phone build too.
+
+### Tests
+
+`tests/clinical-share.test.ts` (identifier checks, care plan tidying, share tokens and trimming, the skills bank, the audio playlist), the sign-in checks for every new route in `tests/routes.test.ts`, and `supabase/tests/007_clinical_test.sql` (item types, owner-only tables, sign-offs, the public link function with expired and revoked links).
 
 ## Open questions for the owner, by stage
 

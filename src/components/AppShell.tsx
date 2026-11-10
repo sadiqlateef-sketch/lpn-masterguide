@@ -5,8 +5,9 @@ import { AmbientCanvas } from "@/components/glass/AmbientCanvas";
 import { FloatingGlassDock, type DockTab } from "@/components/glass/FloatingGlassDock";
 import { GlassCard } from "@/components/glass/GlassCard";
 import { GlossyButton } from "@/components/glass/GlossyButton";
+import { CloudOff } from "lucide-react";
 import type { GameSummary, PathView } from "@/lib/api-types";
-import { api } from "@/lib/client/api";
+import { api, syncOutbox } from "@/lib/client/api";
 import { onBackButton, setupNativeChrome } from "@/lib/client/native";
 import { TWO_PANE_QUERY, useMediaQuery } from "@/lib/client/use-media-query";
 import { cn } from "@/lib/cn";
@@ -15,12 +16,15 @@ import { LessonPlayer } from "./screens/LessonPlayer";
 import { MagicAddSheet, type MagicMode } from "./screens/MagicAddSheet";
 import { PathMap } from "./screens/PathMap";
 import { PlannerSheet } from "./screens/PlannerSheet";
+import { AudioSheet, type AudioChapter } from "./screens/practice/AudioSheet";
+import { ClinicalSheet } from "./screens/practice/ClinicalSheet";
 import { DrugCardsSheet } from "./screens/practice/DrugCardsSheet";
 import { ExamSheet, type ExamOpen } from "./screens/practice/ExamSheet";
 import { GameSheet } from "./screens/practice/GameSheet";
 import { MistakesSheet } from "./screens/practice/MistakesSheet";
 import { NgnSheet } from "./screens/practice/NgnSheet";
 import { PracticeHub } from "./screens/practice/PracticeHub";
+import { SkillsSheet } from "./screens/practice/SkillsSheet";
 import { ReadinessRings } from "./screens/ReadinessRings";
 import { ReviewSheet } from "./screens/ReviewSheet";
 import { TodayCard } from "./screens/TodayCard";
@@ -34,9 +38,12 @@ type PracticeSheet =
   | { kind: "exam"; how: ExamOpen }
   | { kind: "mistakes" }
   | { kind: "drugs" }
-  | { kind: "ngn"; stone: { id: string; title: string } };
+  | { kind: "ngn"; stone: { id: string; title: string } }
+  | { kind: "skills" }
+  | { kind: "clinical" }
+  | { kind: "audio"; chapter: AudioChapter };
 
-const TITLES: Record<DockTab, string> = { path: "Your Path", practice: "Practice", readiness: "Readiness" };
+const TITLES: Record<DockTab, string> = { path: "Your Path", readiness: "Readiness" };
 
 type Boot = { state: "loading" } | { state: "ready" } | { state: "error"; message: string } | { state: "unconfigured" };
 
@@ -52,6 +59,7 @@ export function AppShell() {
   const [reviewStone, setReviewStone] = useState<{ id: string; title: string } | null>(null);
   const [plannerOpen, setPlannerOpen] = useState(false);
   const [practice, setPractice] = useState<PracticeSheet | null>(null);
+  const [online, setOnline] = useState(true);
   const lessonOpenedAt = useRef<number | null>(null);
 
   const loadPath = useCallback(async () => {
@@ -76,7 +84,15 @@ export function AppShell() {
       await ensureSession();
       setBoot({ state: "ready" });
       await loadPath();
+      // Answers saved while offline get sent and checked now.
+      if ((await syncOutbox().catch(() => 0)) > 0) setProgressKey((k) => k + 1);
     } catch (error) {
+      // Offline with a session that needs refreshing: open what's saved on the phone instead.
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        setBoot({ state: "ready" });
+        await loadPath();
+        return;
+      }
       setBoot({ state: "error", message: error instanceof Error ? error.message : "The app couldn't start." });
     }
   }, [loadPath]);
@@ -85,6 +101,27 @@ export function AppShell() {
     void setupNativeChrome();
     void start();
   }, [start]);
+
+  // Back online: send what waited, then refresh the path and the rings.
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    const back = () => {
+      update();
+      void syncOutbox()
+        .catch(() => 0)
+        .then(() => {
+          setProgressKey((k) => k + 1);
+          void loadPath();
+        });
+    };
+    update();
+    window.addEventListener("online", back);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", back);
+      window.removeEventListener("offline", update);
+    };
+  }, [loadPath]);
 
   // Android back button: close whatever is on top, then go back to the path, then leave the app.
   const backState = useRef({ lesson: false, review: false, planner: false, practice: false, magic: false, tab });
@@ -166,6 +203,13 @@ export function AppShell() {
           <h1 className="mt-1 text-3xl font-bold text-white">{TITLES[tab]}</h1>
         </header>
 
+        {!online && (
+          <p role="status" className="flex items-center gap-2 rounded-2xl bg-sky-400/10 px-4 py-3 text-sm font-semibold text-sky-100">
+            <CloudOff aria-hidden className="h-4 w-4 shrink-0" strokeWidth={2.5} />
+            You&apos;re offline. Chapters you saved still open, and answers wait here until you&apos;re back.
+          </p>
+        )}
+
         {boot.state === "unconfigured" && (
           <GlassCard glow="amber" role="alert">
             <p className="text-lg font-semibold">This copy of the app isn&apos;t connected yet.</p>
@@ -198,29 +242,32 @@ export function AppShell() {
                 onRetry={loadPath}
                 onOpenStone={(stone) => setLessonStone({ id: stone.id, title: stone.title })}
                 onAddBook={() => setMagic({ open: true, mode: "book" })}
+                onListen={(chapter) => setPractice({ kind: "audio", chapter })}
               />
             </>
-          ) : tab === "practice" ? (
-            boot.state === "ready" && (
-              <PracticeHub
-                path={path}
-                refreshKey={progressKey}
-                onOpenGame={(game) => setPractice({ kind: "game", game })}
-                onOpenExam={(how) => setPractice({ kind: "exam", how })}
-                onOpenMistakes={() => setPractice({ kind: "mistakes" })}
-                onOpenDrugs={() => setPractice({ kind: "drugs" })}
-                onOpenNgn={(stone) => setPractice({ kind: "ngn", stone })}
-              />
-            )
           ) : (
             boot.state === "ready" && (
-              <ReadinessRings
-                refreshKey={progressKey}
-                hasPath={hasPath}
-                onOpenStone={setLessonStone}
-                onGoToPath={() => setTab("path")}
-                onAddBook={() => setMagic({ open: true, mode: "book" })}
-              />
+              <>
+                <ReadinessRings
+                  refreshKey={progressKey}
+                  hasPath={hasPath}
+                  onOpenStone={setLessonStone}
+                  onGoToPath={() => setTab("path")}
+                  onAddBook={() => setMagic({ open: true, mode: "book" })}
+                />
+                {/* Practice lives under the rings it raises, so the dock keeps its three buttons. */}
+                <PracticeHub
+                  path={path}
+                  refreshKey={progressKey}
+                  onOpenGame={(game) => setPractice({ kind: "game", game })}
+                  onOpenExam={(how) => setPractice({ kind: "exam", how })}
+                  onOpenMistakes={() => setPractice({ kind: "mistakes" })}
+                  onOpenDrugs={() => setPractice({ kind: "drugs" })}
+                  onOpenNgn={(stone) => setPractice({ kind: "ngn", stone })}
+                  onOpenSkills={() => setPractice({ kind: "skills" })}
+                  onOpenClinical={() => setPractice({ kind: "clinical" })}
+                />
+              </>
             )
           ))}
       </main>
@@ -261,6 +308,9 @@ export function AppShell() {
       <MistakesSheet open={practice?.kind === "mistakes"} onClose={closePractice} onChanged={bumpProgress} />
       <DrugCardsSheet open={practice?.kind === "drugs"} onClose={closePractice} onChanged={bumpProgress} />
       <NgnSheet stone={practice?.kind === "ngn" ? practice.stone : null} onClose={closePractice} onChanged={bumpProgress} />
+      <SkillsSheet open={practice?.kind === "skills"} onClose={closePractice} onChanged={bumpProgress} />
+      <ClinicalSheet open={practice?.kind === "clinical"} onClose={closePractice} onChanged={bumpProgress} />
+      <AudioSheet chapter={practice?.kind === "audio" ? practice.chapter : null} onClose={closePractice} onChanged={bumpProgress} />
       <PlannerSheet open={plannerOpen} path={path} onClose={() => setPlannerOpen(false)} onSaved={refreshProgress} />
     </AmbientCanvas>
   );
