@@ -1,12 +1,20 @@
 import type {
   ApiErrorBody,
+  AskAnswer,
   AttemptRequest,
   CompleteResult,
+  CoursePlanView,
   GradeResult,
   LessonView,
+  NotebookColor,
+  NotebookView,
   NoteSourceView,
   PathView,
+  ProcessPartResult,
   ReadinessView,
+  SearchResult,
+  TextbookPartView,
+  TextbookView,
 } from "@/lib/api-types";
 import { ensureSession } from "./supabase";
 
@@ -66,9 +74,23 @@ export const api = {
   attempt: (body: AttemptRequest) => request<GradeResult>("/api/practice/attempt", { method: "POST", body: JSON.stringify(body) }),
   complete: (stoneId: string) => request<CompleteResult>(`/api/stones/${stoneId}/complete`, { method: "POST" }),
   readiness: () => request<ReadinessView>("/api/readiness"),
-  magicAdd: (body: FormData | { text: string; as?: string }) =>
+  magicAdd: (body: FormData | { text: string; as?: string; notebookId?: string; notebook?: string }) =>
     request<MagicAddResponse>("/api/magic-ingest", { method: "POST", body: body instanceof FormData ? body : JSON.stringify(body) }),
   buildSyllabus: (body: FormData | { title?: string; isbn?: string }) =>
     request<BuildSyllabusResponse>("/api/books/build-syllabus", { method: "POST", body: body instanceof FormData ? body : JSON.stringify(body) }),
   noteSources: () => request<{ sources: NoteSourceView[] }>("/api/notes/sources"),
+  notebooks: () => request<{ notebooks: NotebookView[] }>("/api/notebooks"),
+  createNotebook: (name: string, color?: NotebookColor) =>
+    request<NotebookView>("/api/notebooks", { method: "POST", body: JSON.stringify({ name, color }) }),
+  textbooks: () => request<{ textbooks: TextbookView[] }>("/api/textbooks"),
+  registerPart: (textbookId: string, body: { part: number; parts: number; bytes: number; contentHash: string }) =>
+    request<TextbookPartView>(`/api/textbooks/${textbookId}/parts`, { method: "POST", body: JSON.stringify(body) }),
+  processPart: (textbookId: string, part: number) =>
+    request<ProcessPartResult>(`/api/textbooks/${textbookId}/process`, { method: "POST", body: JSON.stringify({ part }) }),
+  coursePlan: (courseId: string) => request<{ plan: CoursePlanView | null }>(`/api/course-plans/${courseId}`),
+  generateCoursePlan: (courseId: string, force = false) =>
+    request<{ plan: CoursePlanView }>("/api/course-plans/generate", { method: "POST", body: JSON.stringify({ courseId, force }) }),
+  ask: (body: { stoneId: string; cardId: string; question: string }) =>
+    request<AskAnswer>("/api/lessons/ask", { method: "POST", body: JSON.stringify(body) }),
+  search: (q: string) => request<{ results: SearchResult[] }>(`/api/search?q=${encodeURIComponent(q)}`),
 };

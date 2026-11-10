@@ -112,7 +112,13 @@ export function normalizeExternalKey(key: string | null | undefined): string | n
   return clean;
 }
 
-async function saveSource(ctx: UserContext, source: NoteSource, ingestItemId: string, contentHashValue: string | null = null) {
+async function saveSource(
+  ctx: UserContext,
+  source: NoteSource,
+  ingestItemId: string,
+  notebookId: string,
+  contentHashValue: string | null = null,
+) {
   const chunks = chunkMarkdown(source.text);
   if (chunks.length === 0) return null;
 
@@ -122,7 +128,7 @@ async function saveSource(ctx: UserContext, source: NoteSource, ingestItemId: st
   const row = check(
     await ctx.supabase
       .from("note_sources")
-      .insert({ user_id: ctx.user.id, ingest_item_id: ingestItemId, title, content_hash: contentHashValue })
+      .insert({ user_id: ctx.user.id, ingest_item_id: ingestItemId, notebook_id: notebookId, title, content_hash: contentHashValue })
       .select("id")
       .single(),
     "save note source",
@@ -163,13 +169,22 @@ export async function listNoteSources(ctx: UserContext): Promise<NoteSourceView[
   const rows = check(
     await ctx.supabase
       .from("note_sources")
-      .select("id, title, external_key, content_hash, created_at, note_chunks(count)")
+      .select("id, title, notebook_id, external_key, content_hash, created_at, note_chunks(count)")
       .order("created_at", { ascending: false }),
     "list notes",
-  ) as { id: string; title: string; external_key: string | null; content_hash: string | null; created_at: string; note_chunks: { count: number }[] }[];
+  ) as {
+    id: string;
+    title: string;
+    notebook_id: string | null;
+    external_key: string | null;
+    content_hash: string | null;
+    created_at: string;
+    note_chunks: { count: number }[];
+  }[];
   return rows.map((r) => ({
     id: r.id,
     title: r.title,
+    notebookId: r.notebook_id,
     externalKey: r.external_key,
     contentHash: r.content_hash,
     chunks: r.note_chunks[0]?.count ?? 0,
@@ -191,6 +206,7 @@ export async function ingestNotes(
     images: readonly ImageInput[];
     text: string | null;
     ingestItemId: string;
+    notebookId: string;
     externalKey?: string | null;
   },
 ): Promise<NotesIngestResult> {
@@ -225,7 +241,7 @@ export async function ingestNotes(
 
   const saved = [];
   for (const source of usable) {
-    const result = await saveSource(ctx, source, input.ingestItemId, hash);
+    const result = await saveSource(ctx, source, input.ingestItemId, input.notebookId, hash);
     if (result) saved.push(result);
   }
 

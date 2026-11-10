@@ -37,6 +37,15 @@ export function listNoteFiles(folder) {
 }
 
 // Same hash the server stores for a synced file (sha256 of the raw bytes).
+// The notebook a file belongs to: its top-level subfolder ("Pharm notebook/week 3.md" -> "Pharm notebook").
+// Files at the top of the folder go into "My notes".
+export function notebookFor(key) {
+  const slash = key.indexOf("/");
+  if (slash <= 0) return null;
+  const name = key.slice(0, slash).replace(/\s+/g, " ").trim();
+  return name ? name.slice(0, 80) : null;
+}
+
 export function hashBytes(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }

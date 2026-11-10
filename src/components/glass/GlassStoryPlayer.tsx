@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion, type PanInfo } from "framer-motion";
-import { AlertTriangle, Baby, BookOpenText, ChevronLeft, ChevronRight, Gamepad2, Stethoscope, Volume2, VolumeX, X } from "lucide-react";
+import { AlertTriangle, Baby, BookOpenText, ChevronLeft, ChevronRight, Gamepad2, MessageCircleQuestion, Stethoscope, Volume2, VolumeX, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { speak, speechAvailable, stopSpeaking } from "@/lib/client/native";
 import { GlassCard, type GlowColor } from "./GlassCard";
@@ -16,6 +16,8 @@ export type StoryCard = {
   title: string;
   bullets?: string[];
   body?: string;
+  // Where the card came from, in small print under it ("Foundations, pp. 41-43").
+  caption?: string;
   content?: React.ReactNode;
   // Cards with their own buttons (Quick Play) turn off swiping and the tap-the-sides zones.
   interactive?: boolean;
@@ -96,9 +98,13 @@ type GlassStoryPlayerProps = {
   showHint?: boolean;
   // Open as the right-hand pane of a two-pane layout instead of over the whole screen.
   pane?: boolean;
+  // Shows an "Ask" button on reading cards; the player stays put while the question sheet is open.
+  onAsk?: (card: StoryCard) => void;
+  // True while something covers the player (the Ask sheet): its keys and swipes wait.
+  paused?: boolean;
 };
 
-export function GlassStoryPlayer({ cards, open, onClose, onComplete, initialIndex = 0, showHint = true, pane = false }: GlassStoryPlayerProps) {
+export function GlassStoryPlayer({ cards, open, onClose, onComplete, initialIndex = 0, showHint = true, pane = false, onAsk, paused = false }: GlassStoryPlayerProps) {
   const reduceMotion = useReducedMotion();
   const [index, setIndex] = useState(initialIndex);
   const [direction, setDirection] = useState<1 | -1>(1);
@@ -134,7 +140,7 @@ export function GlassStoryPlayer({ cards, open, onClose, onComplete, initialInde
   }, [open, initialIndex, cards.length, stopSpeech]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || paused) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight") go(1);
       else if (e.key === "ArrowLeft") go(-1);
@@ -142,7 +148,7 @@ export function GlassStoryPlayer({ cards, open, onClose, onComplete, initialInde
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, go, onClose]);
+  }, [open, paused, go, onClose]);
 
   useEffect(() => stopSpeech, [stopSpeech]);
 
@@ -208,7 +214,22 @@ export function GlassStoryPlayer({ cards, open, onClose, onComplete, initialInde
             <p className="text-sm font-semibold text-white/60" aria-live="polite">
               {index + 1} / {cards.length}
             </p>
-            <GlossyButton size="icon" onClick={onClose} aria-label="Close lesson" icon={<X className="h-6 w-6" strokeWidth={2.5} />} />
+            <div className="flex items-center gap-2">
+              {onAsk && !card.interactive && (
+                <GlossyButton
+                  size="md"
+                  onClick={() => {
+                    stopSpeech();
+                    onAsk(card);
+                  }}
+                  aria-label={`Ask about this card: ${card.title}`}
+                  icon={<MessageCircleQuestion className="h-5 w-5" strokeWidth={2.5} />}
+                >
+                  Ask
+                </GlossyButton>
+              )}
+              <GlossyButton size="icon" onClick={onClose} aria-label="Close lesson" icon={<X className="h-6 w-6" strokeWidth={2.5} />} />
+            </div>
           </div>
 
           <div className="relative mx-auto mt-3 flex min-h-0 w-full max-w-[calc(28rem+2rem)] flex-1 flex-col overflow-y-auto overscroll-contain px-4 py-3">
@@ -291,6 +312,7 @@ function StoryCardView({ card }: { card: StoryCard }) {
         </ul>
       )}
       {card.content && <div className="mt-5">{card.content}</div>}
+      {card.caption && <p className="mt-5 text-xs font-semibold text-white/55">{card.caption}</p>}
     </GlassCard>
   );
 }

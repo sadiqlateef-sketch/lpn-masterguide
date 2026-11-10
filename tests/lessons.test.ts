@@ -4,6 +4,7 @@ import {
   clampBullets,
   fallbackPearls,
   isValidBowtie,
+  lessonCaptions,
   lessonCards,
   lessonFingerprint,
   normalizeForMatch,
@@ -24,8 +25,8 @@ const bowtie = {
 };
 
 const notes: LessonNote[] = [
-  { id: "n1", title: "Cardiac", content: "**Digoxin**\nHold if apical pulse < 60. Remember: *yellow-green halos* = toxicity!", isPearl: true },
-  { id: "n2", title: "Cardiac", content: "# Heart failure\n- Daily weight, same scale, same time.\n- Report a gain of 2 lb in a day.", isPearl: false },
+  { id: "n1", title: "Cardiac", notebook: "Pharm", content: "**Digoxin**\nHold if apical pulse < 60. Remember: *yellow-green halos* = toxicity!", isPearl: true },
+  { id: "n2", title: "Cardiac", notebook: null, content: "# Heart failure\n- Daily weight, same scale, same time.\n- Report a gain of 2 lb in a day.", isPearl: false },
 ];
 
 function draft(overrides: Partial<Lesson> = {}): Lesson {
@@ -148,6 +149,7 @@ describe("lessonFingerprint", () => {
     book: { title: "Book", courseId: "pharmacology" },
     tags: [{ clientNeedId: "pharm", clientNeed: "Pharm", lpnFocus: "", hesiDomain: "Pharmacology", hesiHint: "", relevance: 1 }],
     notes,
+    passages: [{ id: "p1", pages: "p. 12", pageFrom: 12, pageTo: 12, heading: "Digoxin", content: "Take the apical pulse for a full minute." }],
     questions: [{ id: "q1", topic: "digoxin", coreTakeaway: "Hold it", traps: [], missed: true }],
     twins: [],
   };
@@ -158,6 +160,29 @@ describe("lessonFingerprint", () => {
     expect(lessonFingerprint(context, "other-model")).not.toBe(base);
     expect(lessonFingerprint({ ...context, notes: [{ ...notes[0], content: "edited" }, notes[1]] }, "claude-sonnet-5-5")).not.toBe(base);
     expect(lessonFingerprint({ ...context, questions: [] }, "claude-sonnet-5-5")).not.toBe(base);
+    expect(lessonFingerprint({ ...context, passages: [] }, "claude-sonnet-5-5")).not.toBe(base);
+    expect(lessonFingerprint({ ...context, notes: [{ ...notes[0], notebook: "Moved" }, notes[1]] }, "claude-sonnet-5-5")).not.toBe(base);
     expect(lessonFingerprint({ ...context, stone: { ...context.stone, status: "mastered" } }, "claude-sonnet-5-5")).toBe(base);
+  });
+});
+
+describe("lessonCaptions", () => {
+  const book = { title: "Foundations", courseId: "fundamentals" };
+  const passage = (pageFrom: number, pageTo: number) => ({ id: `p${pageFrom}`, pages: "", pageFrom, pageTo, heading: "", content: "x" });
+
+  it("names the book pages behind the LPN Core cards", () => {
+    expect(lessonCaptions({ book, notes: [], passages: [passage(12, 12)] }).core).toBe("Foundations, p. 12");
+    expect(lessonCaptions({ book, notes: [], passages: [passage(14, 15), passage(12, 12)] }).core).toBe("Foundations, pp. 12, 14-15");
+    expect(lessonCaptions({ book, notes: [], passages: [1, 3, 5, 7, 9].map((n) => passage(n, n)) }).core).toBe("Foundations, pp. 1, 3, 5 and 2 more");
+  });
+
+  it("names the notebook and source behind the pearls", () => {
+    expect(lessonCaptions({ book, notes: [notes[0]], passages: [] }).notebook).toBe("From Pharm: Cardiac");
+    expect(lessonCaptions({ book, notes: [{ ...notes[0], notebook: null }], passages: [] }).notebook).toBe("From your notes: Cardiac");
+    expect(lessonCaptions({ book, notes: [notes[0], { ...notes[1], title: "HF" }], passages: [] }).notebook).toBe("From Pharm: 2 sources");
+  });
+
+  it("adds nothing when there are no sources", () => {
+    expect(lessonCaptions({ book, notes: [], passages: [] })).toEqual({});
   });
 });

@@ -2,20 +2,21 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion, type PanInfo } from "framer-motion";
-import { ArrowDown, BookPlus, Check, ChevronDown, ListOrdered, Lock, Play, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowDown, BookPlus, CalendarRange, Check, ChevronDown, ListOrdered, Lock, Play, RotateCcw, Route, Sparkles } from "lucide-react";
 import type { PathCourse, PathModule, PathStone, PathView, StoneStatus } from "@/lib/api-types";
 import { readString, writeString } from "@/lib/client/prefs";
 import { cn } from "@/lib/cn";
 import { connectorPath, courseChapters, courseOfStone, courseStats, findStone, neighborCourse, type Point } from "@/lib/ui/path-view";
 import { GLASS_SURFACE, GlassCard } from "@/components/glass/GlassCard";
 import { GlossyButton } from "@/components/glass/GlossyButton";
+import { PlanView } from "./PlanView";
 
 type PathMapProps = {
   path: PathView | null;
   loading: boolean;
   error: string | null;
   onRetry: () => void;
-  onOpenStone: (stone: PathStone) => void;
+  onOpenStone: (stone: { id: string; title: string }) => void;
   onAddBook: () => void;
 };
 
@@ -57,6 +58,7 @@ const STATUS: Record<StoneStatus, { label: string; node: string; ring: string; I
 // A gentle zigzag, like a trail across the page.
 const OFFSETS = [0, 52, 78, 52, 0, -52, -78, -52];
 const COURSE_KEY = "lpn:path-course";
+const VIEW_KEY = "lpn:path-view";
 const SWIPE_DISTANCE = 80;
 
 export function PathMap({ path, loading, error, onRetry, onOpenStone, onAddBook }: PathMapProps) {
@@ -65,6 +67,13 @@ export function PathMap({ path, loading, error, onRetry, onOpenStone, onAddBook 
   const scrolledTo = useRef<string | null>(null);
   const [courseId, setCourseId] = useState<string | null>(null);
   const [chaptersOpen, setChaptersOpen] = useState(false);
+  // "path" shows the stone trail; "plan" shows the course's weekly plan.
+  const [view, setView] = useState<"path" | "plan">("path");
+  useEffect(() => setView(readString(VIEW_KEY) === "plan" ? "plan" : "path"), []);
+  const chooseView = useCallback((next: "path" | "plan") => {
+    setView(next);
+    writeString(VIEW_KEY, next);
+  }, []);
   // Something to scroll to once the chosen course has rendered: a stone or a chapter.
   const [pendingScroll, setPendingScroll] = useState<{ kind: "stone" | "chapter"; id: string } | null>(null);
   const reduceMotion = useReducedMotion();
@@ -164,82 +173,113 @@ export function PathMap({ path, loading, error, onRetry, onOpenStone, onAddBook 
         )}
       </div>
 
-      <div className="relative flex flex-wrap items-center justify-center gap-3">
-        {nextStone && (
-          <GlossyButton variant="blue" onClick={continueToNext} icon={<Play className="h-4 w-4" strokeWidth={3} />} className="max-w-full">
-            <span className="block max-w-[14rem] truncate">Continue: {nextStone.title}</span>
-          </GlossyButton>
-        )}
-        <GlossyButton
-          onClick={() => setChaptersOpen((open) => !open)}
-          aria-expanded={chaptersOpen}
-          aria-controls="chapter-list"
-          icon={<ListOrdered className="h-4 w-4" strokeWidth={2.5} />}
-        >
-          <span className="flex items-center gap-1">
-            Chapters
-            <ChevronDown aria-hidden className={cn("h-4 w-4 transition-transform", chaptersOpen && "rotate-180")} strokeWidth={2.5} />
-          </span>
-        </GlossyButton>
-        <AnimatePresence>
-          {chaptersOpen && (
-            <ChapterList
-              course={course}
-              nextStoneId={path.nextStoneId}
-              onPick={(moduleId) => {
-                setChaptersOpen(false);
-                setPendingScroll({ kind: "chapter", id: moduleId });
-              }}
-              onClose={closeChapters}
-            />
-          )}
-        </AnimatePresence>
-      </div>
+      <ViewToggle view={view} onChange={chooseView} />
 
-      <motion.section
-        key={course.id}
-        aria-labelledby={`course-${course.id}`}
-        className="flex flex-col gap-6"
-        style={{ touchAction: "pan-y" }}
-        onPanEnd={path.courses.length > 1 ? onPanEnd : undefined}
-        initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <h2 id={`course-${course.id}`} className="sr-only">
-          {course.name}
-        </h2>
-        {course.books.map((book) => (
-          <div key={book.id} className="flex flex-col gap-6">
-            {course.books.length > 1 && <p className="text-center text-sm font-semibold text-white/60">{book.title}</p>}
-            {book.units.map((unit) => (
-              <div key={unit.id} className="flex flex-col gap-5">
-                <p className="text-center text-xs font-bold uppercase tracking-widest text-white/55">{unit.title}</p>
-                {unit.modules.map((module) => {
-                  const offsets = module.stones.map(() => OFFSETS[stoneIndex++ % OFFSETS.length]);
-                  return (
-                    <ChapterBlock
-                      key={module.id}
-                      module={module}
-                      offsets={offsets}
-                      nextStoneId={path.nextStoneId}
-                      onOpen={onOpenStone}
-                      headerRef={(el) => {
-                        if (el) chapterRefs.current.set(module.id, el);
-                        else chapterRefs.current.delete(module.id);
-                      }}
-                      nodeRef={(id, el) => {
-                        if (el) nodeRefs.current.set(id, el);
-                        else nodeRefs.current.delete(id);
-                      }}
-                    />
-                  );
-                })}
+      {view === "plan" ? (
+        <PlanView key={course.id} courseId={course.id} courseName={course.name} onOpenStone={onOpenStone} />
+      ) : (
+        <>
+          <div className="relative flex flex-wrap items-center justify-center gap-3">
+            {nextStone && (
+              <GlossyButton variant="blue" onClick={continueToNext} icon={<Play className="h-4 w-4" strokeWidth={3} />} className="max-w-full">
+                <span className="block max-w-[14rem] truncate">Continue: {nextStone.title}</span>
+              </GlossyButton>
+            )}
+            <GlossyButton
+              onClick={() => setChaptersOpen((open) => !open)}
+              aria-expanded={chaptersOpen}
+              aria-controls="chapter-list"
+              icon={<ListOrdered className="h-4 w-4" strokeWidth={2.5} />}
+            >
+              <span className="flex items-center gap-1">
+                Chapters
+                <ChevronDown aria-hidden className={cn("h-4 w-4 transition-transform", chaptersOpen && "rotate-180")} strokeWidth={2.5} />
+              </span>
+            </GlossyButton>
+            <AnimatePresence>
+              {chaptersOpen && (
+                <ChapterList
+                  course={course}
+                  nextStoneId={path.nextStoneId}
+                  onPick={(moduleId) => {
+                    setChaptersOpen(false);
+                    setPendingScroll({ kind: "chapter", id: moduleId });
+                  }}
+                  onClose={closeChapters}
+                />
+              )}
+            </AnimatePresence>
+          </div>
+
+          <motion.section
+            key={course.id}
+            aria-labelledby={`course-${course.id}`}
+            className="flex flex-col gap-6"
+            style={{ touchAction: "pan-y" }}
+            onPanEnd={path.courses.length > 1 ? onPanEnd : undefined}
+            initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <h2 id={`course-${course.id}`} className="sr-only">
+              {course.name}
+            </h2>
+            {course.books.map((book) => (
+              <div key={book.id} className="flex flex-col gap-6">
+                {course.books.length > 1 && <p className="text-center text-sm font-semibold text-white/60">{book.title}</p>}
+                {book.units.map((unit) => (
+                  <div key={unit.id} className="flex flex-col gap-5">
+                    <p className="text-center text-xs font-bold uppercase tracking-widest text-white/55">{unit.title}</p>
+                    {unit.modules.map((module) => {
+                      const offsets = module.stones.map(() => OFFSETS[stoneIndex++ % OFFSETS.length]);
+                      return (
+                        <ChapterBlock
+                          key={module.id}
+                          module={module}
+                          offsets={offsets}
+                          nextStoneId={path.nextStoneId}
+                          onOpen={onOpenStone}
+                          headerRef={(el) => {
+                            if (el) chapterRefs.current.set(module.id, el);
+                            else chapterRefs.current.delete(module.id);
+                          }}
+                          nodeRef={(id, el) => {
+                            if (el) nodeRefs.current.set(id, el);
+                            else nodeRefs.current.delete(id);
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
             ))}
-          </div>
-        ))}
-        <CourseFooter course={course} />
-      </motion.section>
+            <CourseFooter course={course} />
+          </motion.section>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ViewToggle({ view, onChange }: { view: "path" | "plan"; onChange: (view: "path" | "plan") => void }) {
+  const options = [
+    { id: "path" as const, label: "Path", Icon: Route },
+    { id: "plan" as const, label: "Plan", Icon: CalendarRange },
+  ];
+  return (
+    <div role="group" aria-label="Show the path or the weekly plan" className={cn("mx-auto flex rounded-full p-1", GLASS_SURFACE)}>
+      {options.map(({ id, label, Icon }) => (
+        <button
+          key={id}
+          type="button"
+          aria-pressed={view === id}
+          onClick={() => onChange(id)}
+          className={cn("flex min-h-11 items-center gap-2 rounded-full px-5 text-sm font-bold", view === id ? "bg-white/15 text-white" : "text-white/60 hover:text-white")}
+        >
+          <Icon aria-hidden className="h-4 w-4" strokeWidth={2.5} />
+          {label}
+        </button>
+      ))}
     </div>
   );
 }

@@ -2,16 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { BookPlus, Camera, CheckCircle2, ChevronLeft, ClipboardPaste, FolderSync, Images, Loader2, Paperclip, X } from "lucide-react";
+import { BookPlus, Camera, CheckCircle2, ChevronLeft, ClipboardPaste, FileText, FolderSync, Images, Loader2, Paperclip, Search, X } from "lucide-react";
 import { api, ClientApiError, type BookResult } from "@/lib/client/api";
 import { prepareImages } from "@/lib/client/images";
 import { isNative, pickPhotos, takePhoto } from "@/lib/client/native";
 import { cn } from "@/lib/cn";
 import { GLASS_SURFACE } from "@/components/glass/GlassCard";
 import { GlossyButton } from "@/components/glass/GlossyButton";
+import { NotebookPicker, notebookFields, type NotebookChoice } from "./NotebookPicker";
 import { NotebookSyncPanel } from "./NotebookSyncPanel";
+import { SearchPanel } from "./SearchPanel";
+import { TextbookPdfPanel } from "./TextbookPdfPanel";
 
-export type MagicMode = "home" | "paste" | "book" | "sync";
+export type MagicMode = "home" | "paste" | "book" | "pdf" | "search" | "sync";
 
 type PhotoTarget = "magic" | "toc";
 
@@ -30,6 +33,8 @@ type MagicAddSheetProps = {
   // Something was saved; the path and readiness should reload.
   onAdded: () => void;
   onAccountChanged: () => void;
+  // A search result was tapped: close the sheet and open that stone's lesson.
+  onOpenStone: (stone: { id: string; title: string }) => void;
 };
 
 const ISBN_PATTERN = /^(?:ISBN[-:\s]*)?(97[89][-\s]?)?(\d[-\s]?){9}[\dXx]$/;
@@ -44,13 +49,16 @@ function needsTocTitle(book: BookResult | undefined, fallback: string | null): s
   return book.book?.title ?? fallback;
 }
 
-export function MagicAddSheet({ open, initialMode = "home", onClose, onAdded, onAccountChanged }: MagicAddSheetProps) {
+export function MagicAddSheet({ open, initialMode = "home", onClose, onAdded, onAccountChanged, onOpenStone }: MagicAddSheetProps) {
   const reduceMotion = useReducedMotion();
   const [mode, setMode] = useState<MagicMode>(initialMode);
   const [phase, setPhase] = useState<Phase>({ step: "choose" });
   const [text, setText] = useState("");
   const [bookText, setBookText] = useState("");
   const [noteFiles, setNoteFiles] = useState<File[]>([]);
+  const [notebook, setNotebook] = useState<NotebookChoice>(null);
+  const [searchText, setSearchText] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const photoInput = useRef<HTMLInputElement>(null);
   const tocInput = useRef<HTMLInputElement>(null);
   const noteInput = useRef<HTMLInputElement>(null);
@@ -64,6 +72,9 @@ export function MagicAddSheet({ open, initialMode = "home", onClose, onAdded, on
     setText("");
     setBookText("");
     setNoteFiles([]);
+    setNotebook(null);
+    setSearchText("");
+    setSearchQuery("");
   }, [open, initialMode]);
 
   useEffect(() => {
@@ -140,12 +151,14 @@ export function MagicAddSheet({ open, initialMode = "home", onClose, onAdded, on
     const value = text.trim();
     if (!value && noteFiles.length === 0) return;
     void run(noteFiles.length ? "Saving your notes..." : "Figuring out what this is...", async () => {
+      const extra = notebookFields(notebook);
       if (noteFiles.length === 0) {
-        const result = await api.magicAdd({ text: value });
+        const result = await api.magicAdd({ text: value, ...extra });
         return { message: result.message, needsTocFor: needsTocTitle(result.book, value) };
       }
       const form = new FormData();
       if (value) form.append("text", value);
+      for (const [key, v] of Object.entries(extra)) form.append(key, v);
       for (const file of noteFiles) form.append("files", file);
       return { message: (await api.magicAdd(form)).message };
     });
@@ -178,7 +191,14 @@ export function MagicAddSheet({ open, initialMode = "home", onClose, onAdded, on
         : "Add a photo"
       : phase.step !== "choose"
       ? "Magic Add"
-      : { home: "Add anything", paste: "Paste a note or question", book: "Add a school book", sync: "Sync a NotebookLM folder" }[mode];
+      : {
+          home: "Add anything",
+          paste: "Paste a note or question",
+          book: "Add a school book",
+          pdf: "Add a whole book (PDF)",
+          search: "Search",
+          sync: "Sync a NotebookLM folder",
+        }[mode];
 
   return (
     <AnimatePresence>
@@ -295,6 +315,31 @@ export function MagicAddSheet({ open, initialMode = "home", onClose, onAdded, on
 
               {phase.step === "choose" && mode === "home" && (
                 <div className="flex flex-col gap-3">
+                  <form
+                    role="search"
+                    className="relative"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (searchText.trim().length < 2) return;
+                      setSearchQuery(searchText.trim());
+                      setMode("search");
+                    }}
+                  >
+                    <label htmlFor="magic-search" className="sr-only">
+                      Search your notes, books and questions
+                    </label>
+                    <Search aria-hidden className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/50" strokeWidth={2.5} />
+                    <input
+                      id="magic-search"
+                      type="search"
+                      value={searchText}
+                      onChange={(e) => setSearchText(e.target.value)}
+                      enterKeyHint="search"
+                      maxLength={120}
+                      placeholder="Search notes, books, questions"
+                      className="min-h-12 w-full rounded-2xl border border-white/15 bg-white/[0.06] pl-11 pr-4 text-base text-white placeholder:text-white/45 focus:border-sky-300/60 focus:outline-none"
+                    />
+                  </form>
                   <BigChoice
                     Icon={Camera}
                     tint="from-sky-400/30 to-blue-600/20 text-sky-200"
@@ -315,6 +360,13 @@ export function MagicAddSheet({ open, initialMode = "home", onClose, onAdded, on
                     title="Add School Book"
                     hint="Type the title or ISBN"
                     onClick={() => setMode("book")}
+                  />
+                  <BigChoice
+                    Icon={FileText}
+                    tint="from-teal-300/30 to-teal-600/20 text-teal-100"
+                    title="Add a Whole Book (PDF)"
+                    hint="Your school book's PDF, so lessons use its real pages"
+                    onClick={() => setMode("pdf")}
                   />
                   <button
                     type="button"
@@ -370,6 +422,7 @@ export function MagicAddSheet({ open, initialMode = "home", onClose, onAdded, on
                       ))}
                     </ul>
                   )}
+                  <NotebookPicker value={notebook} onChange={setNotebook} />
                   <GlossyButton type="submit" variant="violet" size="lg" className="justify-center" disabled={!text.trim() && noteFiles.length === 0}>
                     Add it
                   </GlossyButton>
@@ -405,6 +458,16 @@ export function MagicAddSheet({ open, initialMode = "home", onClose, onAdded, on
               )}
 
               {phase.step === "choose" && mode === "sync" && <NotebookSyncPanel onAccountChanged={onAccountChanged} />}
+              {phase.step === "choose" && mode === "pdf" && <TextbookPdfPanel onAdded={onAdded} onAddBook={() => setMode("book")} onDone={onClose} />}
+              {phase.step === "choose" && mode === "search" && (
+                <SearchPanel
+                  initialQuery={searchQuery}
+                  onOpenStone={(stone) => {
+                    onClose();
+                    onOpenStone(stone);
+                  }}
+                />
+              )}
             </div>
           </motion.div>
         </>
