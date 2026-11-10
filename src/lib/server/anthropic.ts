@@ -56,12 +56,14 @@ type StructuredRequest<Schema extends z.ZodType> = {
   content: ContentBlock[] | string;
   effort?: Effort;
   maxTokens?: number;
+  // Another model for this one call, such as the review model for a hard case. Defaults to the app's model.
+  model?: string;
 };
 
 // One Claude call whose reply is validated against `schema`. Streams so large outputs never time out.
 export async function generateStructured<Schema extends z.ZodType>(req: StructuredRequest<Schema>): Promise<z.infer<Schema>> {
   const stream = anthropic().beta.messages.stream({
-    model: env.anthropicModel(),
+    model: req.model ?? env.anthropicModel(),
     max_tokens: req.maxTokens ?? 32000,
     betas: [FALLBACK_BETA],
     fallbacks: "default",

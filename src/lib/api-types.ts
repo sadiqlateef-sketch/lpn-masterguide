@@ -282,4 +282,64 @@ export type WeeklyReportView = {
   nextFocus: string[];
 };
 
+// ---------------------------------------------------------------------------
+// Anki decks (stage 5)
+// ---------------------------------------------------------------------------
+
+export type DeckState = "importing" | "ready" | "failed";
+
+export type DeckView = {
+  id: string;
+  name: string;
+  fileName: string | null;
+  state: DeckState;
+  error: string | null;
+  cards: number;
+  skipped: number;
+  filed: number;
+  checked: number;
+  checkCap: number;
+  checksUsed: number;
+  flagsPending: number;
+  suggestionsPending: number;
+  createdAt: string;
+};
+
+export type CardVerdict = "agrees" | "disagrees" | "outdated" | "out_of_scope" | "no_source";
+export type CheckDecision = "none" | "pending" | "accepted" | "dismissed";
+
+export type SourceQuote = { kind: "note" | "textbook"; label: string; quote: string };
+
+export type CardCheckView = {
+  id: string;
+  cardId: string;
+  front: string;
+  back: string;
+  stoneTitle: string | null;
+  verdict: CardVerdict;
+  explanation: string;
+  suggestion: { front: string; back: string } | { action: "suspend" } | null;
+  sources: SourceQuote[];
+  escalated: boolean;
+  decision: CheckDecision;
+};
+
+export type CardSuggestionView = {
+  id: string;
+  stoneId: string;
+  stoneTitle: string;
+  front: string;
+  back: string;
+  sources: SourceQuote[];
+};
+
+export type DeckCheckProgress = {
+  deck: DeckView;
+  checkedNow: number;
+  remaining: number;
+  capReached: boolean;
+};
+
+export type DeckCardView = { id: string; front: string; back: string; origin: "import" | "suggested" };
+
 export type ApiErrorBody = { error: { code: string; message: string } };
