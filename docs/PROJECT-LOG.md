@@ -74,13 +74,21 @@ A study app for LPN/LVN students, from day one to passing the NCLEX-PN and the H
 - Ask about this card (a button on lesson cards) and one search box in Magic +.
 - Migration `005_sources_and_plans.sql` was applied to the live database on 2026-11-10 before the merge.
 
-### Next update, stage 4 (2026-11-10, branch `claude/study-planner`, awaiting approval)
+### Next update, stage 4 (2026-11-10, merged and live)
 
 - Today card at the top of the Path: reviews due, stones to learn and a question goal sized to today's study times, a streak, and the pace toward the next exam.
 - Planner sheet: NCLEX-PN and HESI dates, a review-only buffer, study times per weekday with a course each, and a daily reminder (a calendar download on the website).
 - Spaced review: a mastered stone comes back the next day, then further out the better each review goes. Due stones show a clock on the Path. A poor review sends the stone back to learn again.
 - Weekly report on Readiness.
-- Needs migration `006_planner.sql` on the live database before the merge. It is written and tested on a scratch database, not applied.
+- Migration `006_planner.sql` was applied to the live database on 2026-11-10 before the merge.
+
+### Next update, stage 5 (2026-11-10, branch `claude/anki-import`, awaiting approval)
+
+- "Add an Anki Deck" in Magic +: an `.apkg`, `.colpkg` or plain-text export goes straight to Storage, then the server reads the cards and files each under its closest stone.
+- "Check cards" fact-checks each card against the student's own books and notes, with the source words quoted. Every fix waits for Accept; nothing changes on its own. Each deck checks up to 200 cards, and the student can allow more.
+- "Suggest cards for thin stones" writes new cards from a stone's passages and notes, waiting for Add to deck or Skip.
+- Cleared cards come first in a stone's spaced review, as flip cards. On the web, "Export for Anki" downloads the checked deck.
+- Needs migration `007_anki.sql` on the live database before the merge. It is written and tested on a scratch database, not applied.
 
 ## Going live (2026-10-19 to 2026-11-10)
 
@@ -121,8 +129,10 @@ Push to `main` on GitHub and Vercel redeploys on its own. A database change goes
 
 ## Open items
 
-- **Migration 006:** apply `006_planner.sql` to the live Supabase project before stage 4 goes live.
-- **Phone reminders:** need the `@capacitor/local-notifications` plugin, waiting on the owner's yes.
+- **Migration 007:** apply `007_anki.sql` to the live Supabase project before stage 5 goes live.
+- **Review model for Anki checks:** optional `ANTHROPIC_REVIEW_MODEL` in Vercel. Until it's set, unsure cards get a second look from the everyday model.
+- **Anki files not yet tried on the live app:** the import is tested with decks built in code, not a real deck exported from Anki, and the export hasn't been opened in Anki yet.
+- **Phone reminders:** need the `@capacitor/local-notifications` plugin. The owner didn't pick it when stage 4 merged, so it isn't added.
 - **Note uploads over 4.5 MB:** Vercel caps a request body at about 4.5 MB, so a large PDF note sent through Magic + or the sync script may fail even though the app allows 25 MB. Textbook PDFs avoid this by going straight to Storage; notes could do the same later.
 
 - **Signed release build:** not made yet. It's needed before sharing the app or publishing to Google Play.

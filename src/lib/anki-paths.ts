@@ -1,6 +1,6 @@
 // Shared by the phone (which uploads a deck file) and the server (which reads it).
 
-export const ANKI_DECK_MAX_BYTES = 60 * 1024 * 1024;
+export const ANKI_DECK_MAX_BYTES = 50 * 1024 * 1024;
 
 export function ankiDeckPathPrefix(userId: string): string {
   return `${userId}/decks/`;

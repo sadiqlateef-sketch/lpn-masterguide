@@ -5,7 +5,7 @@ You need three free accounts. Each one gives you keys that go in a file called `
 ## 1. Supabase (database and file storage)
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. Open **SQL Editor** and run each file in `supabase/migrations/` in order: `001_initial_schema.sql`, `002_magic_add.sql`, `003_lessons_progress_sync.sql`, `004_advisor_fixes.sql`, `005_sources_and_plans.sql`, then `006_planner.sql`.
+2. Open **SQL Editor** and run each file in `supabase/migrations/` in order: `001_initial_schema.sql`, `002_magic_add.sql`, `003_lessons_progress_sync.sql`, `004_advisor_fixes.sql`, `005_sources_and_plans.sql`, `006_planner.sql`, then `007_anki.sql`.
 3. Open **Authentication > Sign In / Providers** and turn on **Allow anonymous sign-ins**. The app signs students in automatically so there is no login screen. Leave **Email** sign-in on too: students save an email and password from Magic + when they want to sync a NotebookLM folder or move to a new phone.
 4. Open **Project Settings > API** and copy:
    - Project URL into `NEXT_PUBLIC_SUPABASE_URL`

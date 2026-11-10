@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, RotateCcw, X } from "lucide-react";
-import type { LessonView, ReviewGrade, ReviewResult } from "@/lib/api-types";
+import { Layers, Loader2, RotateCcw, X } from "lucide-react";
+import type { DeckCardView, LessonView, ReviewGrade, ReviewResult } from "@/lib/api-types";
 import { api, deviceTimeZone } from "@/lib/client/api";
 import { localDay } from "@/lib/study-math";
 import { dueLabel } from "@/lib/ui/planner-format";
@@ -11,8 +11,9 @@ import { GlassCard } from "@/components/glass/GlassCard";
 import { GlossyButton } from "@/components/glass/GlossyButton";
 import { EMPTY_QUICK_PLAY, QuickPlay, type QuickPlayState } from "./QuickPlay";
 
-// A spaced review: the stone's own Quick Play questions again, no story cards. How many come out right
-// sets when it's due next, and a poor round sends the stone back to the path to learn again.
+// A spaced review: first the student's own Anki cards for the stone that passed the fact-check, if any,
+// then the stone's Quick Play questions again, no story cards. How many questions come out right sets
+// when it's due next, and a poor round sends the stone back to the path to learn again.
 
 type Props = {
   stone: { id: string; title: string } | null;
@@ -24,6 +25,7 @@ type Props = {
 
 type Phase =
   | { kind: "loading" }
+  | { kind: "cards"; lesson: LessonView; cards: DeckCardView[] }
   | { kind: "playing"; lesson: LessonView; startedAt: string }
   | { kind: "saving" }
   | { kind: "done"; result: ReviewResult }
@@ -45,9 +47,13 @@ export function ReviewSheet({ stone, onClose, onSaved, onRelearn }: Props) {
     setPhase({ kind: "loading" });
     setPlay(EMPTY_QUICK_PLAY);
     try {
-      const lesson = await api.lesson(id);
+      const [lesson, cards] = await Promise.all([api.lesson(id), api.stoneCards(id).then((r) => r.cards, () => [] as DeckCardView[])]);
       if (!lesson.practice.length) {
         setPhase({ kind: "error", message: "This lesson has no questions to review yet.", retry: "load" });
+        return;
+      }
+      if (cards.length) {
+        setPhase({ kind: "cards", lesson, cards });
         return;
       }
       startedAt.current = new Date().toISOString();
@@ -100,6 +106,15 @@ export function ReviewSheet({ stone, onClose, onSaved, onRelearn }: Props) {
                   <p className="font-semibold">{phase.kind === "loading" ? "Getting your questions..." : "Saving your review..."}</p>
                 </div>
               )}
+              {phase.kind === "cards" && (
+                <DeckFlashcards
+                  cards={phase.cards}
+                  onDone={() => {
+                    startedAt.current = new Date().toISOString();
+                    setPhase({ kind: "playing", lesson: phase.lesson, startedAt: startedAt.current });
+                  }}
+                />
+              )}
               {phase.kind === "playing" && (
                 <QuickPlay
                   stoneId={stone.id}
@@ -150,5 +165,51 @@ export function ReviewSheet({ stone, onClose, onSaved, onRelearn }: Props) {
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+// The stone's Anki cards, one at a time: think of the answer, tap to see it, then move on.
+function DeckFlashcards({ cards, onDone }: { cards: DeckCardView[]; onDone: () => void }) {
+  const [index, setIndex] = useState(0);
+  const [shown, setShown] = useState(false);
+  const card = cards[index];
+  const last = index === cards.length - 1;
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="flex items-center gap-2 text-sm font-semibold text-amber-200">
+        <Layers aria-hidden className="h-4 w-4" strokeWidth={2.5} />
+        Your Anki cards · {index + 1} of {cards.length}
+      </p>
+      <button
+        type="button"
+        onClick={() => setShown(true)}
+        aria-label={shown ? undefined : "Show the answer"}
+        className="min-h-40 rounded-3xl bg-white/[0.06] p-5 text-left focus-visible:outline-2 focus-visible:outline-amber-300"
+      >
+        <p className="whitespace-pre-line text-lg font-bold leading-snug">{card.front}</p>
+        {shown ? (
+          <p className="mt-4 whitespace-pre-line border-t border-white/15 pt-4 text-white/85" aria-live="polite">
+            {card.back}
+          </p>
+        ) : (
+          <p className="mt-4 text-sm text-white/50">Think of the answer, then tap to check.</p>
+        )}
+      </button>
+      <div className="flex gap-3">
+        <GlossyButton
+          variant="amber"
+          onClick={() => {
+            if (last) onDone();
+            else {
+              setIndex(index + 1);
+              setShown(false);
+            }
+          }}
+        >
+          {last ? "On to the questions" : "Next card"}
+        </GlossyButton>
+        {!last && <GlossyButton onClick={onDone}>Skip to questions</GlossyButton>}
+      </div>
+    </div>
   );
 }

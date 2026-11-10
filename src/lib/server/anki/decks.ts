@@ -10,7 +10,7 @@ import { buildApkg, DeckFormatError, parseApkg, parseTextExport, type ParsedDeck
 export const MAX_DECK_FILE_BYTES = ANKI_DECK_MAX_BYTES;
 export const MAX_DECK_TEXT_CHARS = 3_000_000;
 export const MAX_CHECK_CAP = 2000;
-const INSERT_BATCH = 200;
+const INSERT_BATCH = 100;
 const LINK_THRESHOLD = 0.35;
 
 type DeckRow = {
@@ -93,10 +93,13 @@ export async function listDecks(ctx: UserContext): Promise<DeckView[]> {
 }
 
 async function readDeckFile(ctx: UserContext, storagePath: string, fileName: string | null): Promise<ParsedDeck> {
-  if (!storagePath.startsWith(ankiDeckPathPrefix(ctx.user.id))) throw new ApiError(400, "That upload isn't in your deck folder.", "bad_path");
+  const prefix = ankiDeckPathPrefix(ctx.user.id);
+  if (!storagePath.startsWith(prefix) || !/^[\w-]+\.(apkg|colpkg|txt|tsv|csv)$/i.test(storagePath.slice(prefix.length))) {
+    throw new ApiError(400, "That upload isn't in your deck folder.", "bad_path");
+  }
   const download = await ctx.supabase.storage.from("uploads").download(storagePath);
   if (download.error || !download.data) throw new ApiError(404, "The deck didn't finish uploading. Try again.", "upload_missing");
-  if (download.data.size > MAX_DECK_FILE_BYTES) throw new ApiError(413, "That deck is over 60 MB. Export it without media and try again.", "file_too_big");
+  if (download.data.size > MAX_DECK_FILE_BYTES) throw new ApiError(413, "That deck is over 50 MB. Export it without media and try again.", "file_too_big");
   const bytes = new Uint8Array(await download.data.arrayBuffer());
   try {
     if (looksLikeZip(bytes)) return await parseApkg(bytes);

@@ -143,34 +143,46 @@ Today card above the Path, review sheet, planner sheet (opened from the Today ca
 
 Pure math in `src/lib/study-math.ts` (SM-2, pacing, today's plan, streaks across time zones, weekly report, calendar reminder), labels in `src/lib/ui/planner-format.ts`, planner service tests, route sign-in tests, and `supabase/tests/004_planner_test.sql` for the tables, `local_day`, the trigger and the new `complete_stone`.
 
-## Stage 5: Anki decks
+## Stage 5: Anki decks (built on `claude/anki-import`)
 
 ### What the owner gets
 
-- **Import.** Magic + takes an Anki `.apkg` (or a text export). The importer reads the deck's SQLite file on the server, keeps fields, tags and media references, and files each card under the closest stone.
-- **Fact-check.** Each card is checked against the student's own sources (textbook chunks, NotebookLM notes) by Sonnet. A card gets one of: agrees, disagrees, outdated, out of LPN scope, or no source found. Every flag quotes the source passage it rests on, with the book or notebook and page. Cards Sonnet can't settle go to the review model. **Nothing on a card changes until the student accepts the suggestion.**
-- **New cards.** For stones with thin coverage, the app suggests new cards from the sources, each with its source quoted. Suggestions wait for acceptance.
-- **Review.** Accepted cards join spaced review (stage 4), and every review session ends with NCLEX-style questions.
-- **Export** of an accepted deck back to `.apkg` so it still works in Anki.
+- **Import.** Magic + has a new "Add an Anki Deck" choice. It takes an Anki `.apkg` or `.colpkg` (any Anki version's collection format, including the newer compressed one) or a plain-text export. The phone uploads the file straight to the student's private Storage folder, the server reads it, and each card is filed under its closest stone.
+- **Fact-check.** "Check cards" checks each card against the student's own textbook passages and notes, eight cards per Sonnet call, with a running count. A card gets one of: matches your sources, doesn't match, out of date, not LPN content, or not in your sources yet. Every verdict shows the source words it rests on, with the book and pages or the notebook. Cards Sonnet isn't sure about get a second look from the review model. **Nothing on a card changes until the student taps Accept.**
+- **New cards.** "Suggest cards for thin stones" writes up to three cards for each stone the deck covers with fewer than three cards, from that stone's passages and notes, each with its source words. Suggestions wait for Add to deck or Skip.
+- **Review.** A stone's cleared cards (checked and matching, accepted fixes, added suggestions) come first in its spaced review, as flip cards, before the stone's NCLEX-style questions.
+- **Export.** On the web, "Export for Anki" downloads the deck as an `.apkg`, named "(checked)", with accepted fixes and added cards and without suspended ones.
+
+### Changes from the plan
+
+- **Media isn't kept.** Pictures and sounds on cards show as "[image]" and are dropped from the export; the plan said media references would be kept. Text is what the check needs, and decks with media are often too big to upload.
+- **The review model is an environment variable with no default.** Until `ANTHROPIC_REVIEW_MODEL` is set in Vercel, the second look uses the everyday model again with more effort.
+- **A quote must be real.** A verdict counts only when its quote appears word for word in the source it names. A card whose verdict has no real quote gets the second look, and if that still has none it's marked "not in your sources yet" instead of being flagged.
+- **Cards nothing is near are not sent to the model.** A card with no passage or note close to it is marked "not in your sources yet" without a call, and doesn't count toward the cap.
+- **Export is web only.** The Android app can't save a downloaded file without a new plugin, so the button shows only on the web.
+- **Suggested cards are checked only for real quotes, not fact-checked again.** They're built from the same sources a check would use.
+- **Decks can be removed.** Removing a deck deletes its cards, checks and suggestions in the app, not the student's Anki copy.
 
 ### Data model (migration `007_anki.sql`)
 
-- `decks` (id, user_id, name, source_file_path, imported_at, card_count).
-- `deck_cards` (id, user_id, deck_id, stone_id, front, back, tags text[], anki_note_id, state).
-- `card_checks` (id, user_id, card_id, verdict, suggestion jsonb, source_refs jsonb, model, checked_at, decision: pending, accepted, dismissed).
-- `card_suggestions` (id, user_id, stone_id, front, back, source_refs jsonb, decision).
+- `decks` (name, file name, format, storage path, state importing/ready/failed, card and skipped counts, `check_cap` default 200, `checks_used`).
+- `deck_cards` (deck, stone (cleared if the stone is deleted), front, back, the original front and back once a fix is accepted, tags, Anki note id and guid, origin import/suggested, state active/suspended, a 1024-dimension vector, `checked_at`).
+- `card_checks` (one per card: verdict, explanation, suggestion `{front, back}` or `{action: "suspend"}`, source quotes, model, whether it was escalated, decision none/pending/accepted/dismissed).
+- `card_suggestions` (deck, stone, front, back, source quotes, decision, the card it became).
+- Functions: `link_deck_cards`, `reserve_deck_checks` and `release_deck_checks` (the cap, taken atomically), `decide_card_check` (accepting applies the fix and keeps the original, or suspends; dismissing changes nothing) and `decide_card_suggestion`.
+- Row-level security on all four tables, owner only.
 
 ### Routes
 
-`POST /api/decks/import`, `POST /api/decks/{id}/check` (batched, resumable), `GET /api/decks/{id}/checks`, `POST /api/card-checks/{id}/decision`, `POST /api/decks/{id}/suggest`, `GET /api/decks/{id}/export`.
+`GET /api/decks`, `POST /api/decks/import`, `GET|PUT|DELETE /api/decks/{id}` (PUT raises the cap), `POST /api/decks/{id}/check` (resumable: call again until nothing remains or the cap is reached), `GET /api/decks/{id}/checks`, `POST /api/card-checks/{id}/decision`, `GET|POST /api/decks/{id}/suggest`, `POST /api/card-suggestions/{id}/decision`, `GET /api/decks/{id}/export`, `GET /api/stones/{id}/cards`.
 
 ### Cost guard
 
-Checks run in batches with prompt caching, show a running count, and stop at a per-import cap the student can raise. Only unclear cards go to the review model.
+Each deck may check up to 200 cards at first. The student can allow 200 more at a time, up to 2000. Checks are reserved before the call and given back if a batch fails. The system prompt is cached, and only unsure cards get the second look.
 
 ### Tests
 
-`.apkg` parsing with a fixture deck, verdict schema parsing, the escalation rule, decision handling (a dismissed check never changes the card), and export round trip.
+`tests/anki-apkg.test.ts` (field text, cloze, a compressed modern collection inside a zip, a non-deck file, text exports, and the export round trip with stable ids), `tests/anki-check.test.ts` (quote matching, the verdict and escalation rules, suggestion cleanup) and `supabase/tests/005_anki_test.sql` (filing cards, the cap, accept and dismiss, suggestions, and that another student sees nothing).
 
 ## Stage 6: Games, practice and the remaining features
 
@@ -209,4 +221,4 @@ Grading for each NGN type, game round generation stays in LPN scope, adaptive st
 
 - Stage 3: the textbook PDFs are for his own study only and stay private to his account. Confirm that's how he wants it.
 - Stage 4: whether to add phone notifications (the official Capacitor plugin), and whether they should skip his work days.
-- Stage 5: a per-import spending cap for the fact-check (the default will be shown before the first check runs).
+- Stage 5: each deck checks up to 200 cards before asking to allow more (the button shows how many it will check). Say if you want a different default, and whether to set `ANTHROPIC_REVIEW_MODEL` in Vercel for the second look.

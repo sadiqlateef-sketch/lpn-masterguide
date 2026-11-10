@@ -70,6 +70,14 @@ The owner wants speed and thoroughness over saving tokens: build complete featur
 - A review scores the stone's lesson items answered since the round started (`POST /api/reviews/{stoneId}` with `startedAt`). It needs the stone mastered; "again" sets it to `needs_review`.
 - Phone notifications aren't built: they need `@capacitor/local-notifications`, which hasn't been approved. The website offers an .ics calendar reminder.
 
+## Anki decks (stage 5)
+
+- Files: `src/lib/server/anki/` has `zip.ts` (a small zip reader and writer), `apkg.ts` (reading `.apkg`/`.colpkg` with `node:sqlite`, including the zstd-compressed `collection.anki21b`; plain-text exports; writing a schema 11 `.apkg`), `decks.ts` (import, list, cap, export, a stone's cards), `sources.ts` (numbered sources and quote checks), `check.ts` and `suggest.ts`.
+- Deck files never pass through the API: the phone uploads to `uploads/<user>/decks/<id>.<ext>` (`src/lib/client/deck-upload.ts`), then posts the path to `/api/decks/import`.
+- Fact-check: 8 cards per call with numbered sources; `settleCheck` keeps a verdict only when its quotes appear word for word in the source they name (`quoteInSource`). Unsure cards go once to `env.anthropicReviewModel()` (`ANTHROPIC_REVIEW_MODEL`, falling back to `ANTHROPIC_MODEL`). `generateStructured` takes a `model` override for this.
+- Cards change only through `decide_card_check` (accepting a fix keeps `original_front`/`original_back`; dismissing changes nothing) and `decide_card_suggestion`. The cap is `reserve_deck_checks` / `release_deck_checks`.
+- `GET /api/stones/{id}/cards` gives a stone's cleared cards; `ReviewSheet` shows them before the questions.
+
 ## Android app (Phase 4)
 
 - `MOBILE_BUILD=1 next build` (`npm run mobile:build`) static-exports the screens to `out/`, Capacitor's `webDir`. In that mode only `.tsx`/`.jsx` count as pages, so `route.ts` and `middleware.ts` are left out; the app calls the hosted API at `NEXT_PUBLIC_API_BASE_URL` (`API_BASE` in `src/lib/client/api.ts`). Keep screens free of server-only imports and dynamic routes so the export keeps working.
