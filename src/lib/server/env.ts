@@ -14,6 +14,9 @@ export const env = {
   supabaseAnonKey: () => required("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
   anthropicApiKey: () => required("ANTHROPIC_API_KEY"),
   anthropicModel: () => process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
+  // For the few hard cases the everyday model isn't sure about, such as an Anki card with a doubtful fact-check.
+  // The owner sets it in Vercel; until then the hard cases get a second, more careful look from the everyday model.
+  anthropicReviewModel: () => process.env.ANTHROPIC_REVIEW_MODEL || process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
   voyageApiKey: () => required("VOYAGE_API_KEY"),
   voyageModel: () => process.env.VOYAGE_MODEL || "voyage-3.5",
   googleBooksApiKey: () => process.env.GOOGLE_BOOKS_API_KEY || null,

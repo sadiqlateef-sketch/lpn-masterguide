@@ -2,19 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { BookPlus, Camera, CheckCircle2, ChevronLeft, ClipboardPaste, FileText, FolderSync, Images, Loader2, Paperclip, Search, X } from "lucide-react";
+import { BookPlus, Camera, CheckCircle2, ChevronLeft, ClipboardPaste, FileText, FolderSync, Images, Layers, Loader2, Paperclip, Search, X } from "lucide-react";
 import { api, ClientApiError, type BookResult } from "@/lib/client/api";
 import { prepareImages } from "@/lib/client/images";
 import { isNative, pickPhotos, takePhoto } from "@/lib/client/native";
 import { cn } from "@/lib/cn";
 import { GLASS_SURFACE } from "@/components/glass/GlassCard";
 import { GlossyButton } from "@/components/glass/GlossyButton";
+import { AnkiDeckPanel } from "./AnkiDeckPanel";
 import { NotebookPicker, notebookFields, type NotebookChoice } from "./NotebookPicker";
 import { NotebookSyncPanel } from "./NotebookSyncPanel";
 import { SearchPanel } from "./SearchPanel";
 import { TextbookPdfPanel } from "./TextbookPdfPanel";
 
-export type MagicMode = "home" | "paste" | "book" | "pdf" | "search" | "sync";
+export type MagicMode = "home" | "paste" | "book" | "pdf" | "search" | "sync" | "anki";
 
 type PhotoTarget = "magic" | "toc";
 
@@ -198,6 +199,7 @@ export function MagicAddSheet({ open, initialMode = "home", onClose, onAdded, on
           pdf: "Add a whole book (PDF)",
           search: "Search",
           sync: "Sync a NotebookLM folder",
+          anki: "Anki decks",
         }[mode];
 
   return (
@@ -368,6 +370,13 @@ export function MagicAddSheet({ open, initialMode = "home", onClose, onAdded, on
                     hint="Your school book's PDF, so lessons use its real pages"
                     onClick={() => setMode("pdf")}
                   />
+                  <BigChoice
+                    Icon={Layers}
+                    tint="from-amber-300/30 to-amber-600/20 text-amber-100"
+                    title="Add an Anki Deck"
+                    hint="Check your cards against your books and notes, and fill the gaps"
+                    onClick={() => setMode("anki")}
+                  />
                   <button
                     type="button"
                     onClick={() => setMode("sync")}
@@ -458,6 +467,7 @@ export function MagicAddSheet({ open, initialMode = "home", onClose, onAdded, on
               )}
 
               {phase.step === "choose" && mode === "sync" && <NotebookSyncPanel onAccountChanged={onAccountChanged} />}
+              {phase.step === "choose" && mode === "anki" && <AnkiDeckPanel onAdded={onAdded} />}
               {phase.step === "choose" && mode === "pdf" && <TextbookPdfPanel onAdded={onAdded} onAddBook={() => setMode("book")} onDone={onClose} />}
               {phase.step === "choose" && mode === "search" && (
                 <SearchPanel

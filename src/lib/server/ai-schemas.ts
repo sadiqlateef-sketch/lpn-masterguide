@@ -185,3 +185,39 @@ export const AskAnswerSchema = z.object({
   cited: z.array(z.number()).describe("The [n] numbers of the sources the answer draws on"),
 });
 export type AskAnswerRaw = z.infer<typeof AskAnswerSchema>;
+
+export const CARD_VERDICTS = ["agrees", "disagrees", "outdated", "out_of_scope", "no_source"] as const;
+
+export const SourceQuoteSchema = z.object({
+  source: z.number().describe("The [n] number of the source"),
+  quote: z.string().describe("Words copied exactly from that source, one sentence or less"),
+});
+
+export const CardCheckBatchSchema = z.object({
+  results: z.array(
+    z.object({
+      card: z.number().describe("The card's C-number"),
+      verdict: z.enum(CARD_VERDICTS),
+      confidence: z.number().describe("0 to 1: how sure the sources make you"),
+      explanation: z.string().describe("One or two plain sentences for the student"),
+      corrected_front: z.string().describe("For disagrees or outdated: the fixed front, else empty"),
+      corrected_back: z.string().describe("For disagrees or outdated: the fixed back, else empty"),
+      quotes: z.array(SourceQuoteSchema).describe("What the verdict rests on; required for agrees, disagrees and outdated"),
+    }),
+  ),
+});
+export type CardCheckBatch = z.infer<typeof CardCheckBatchSchema>;
+export type CardCheckRaw = CardCheckBatch["results"][number];
+
+export const CardSuggestionSchema = z.object({
+  cards: z
+    .array(
+      z.object({
+        front: z.string().describe("A question or prompt, one sentence"),
+        back: z.string().describe("The answer, two sentences at most"),
+        quotes: z.array(SourceQuoteSchema).describe("The source words the card is built from"),
+      }),
+    )
+    .describe("Up to three new cards"),
+});
+export type CardSuggestionRaw = z.infer<typeof CardSuggestionSchema>;

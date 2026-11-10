@@ -2,6 +2,12 @@ import type {
   ApiErrorBody,
   AskAnswer,
   AttemptRequest,
+  CardCheckView,
+  CardSuggestionView,
+  CardVerdict,
+  DeckCardView,
+  DeckCheckProgress,
+  DeckView,
   CompleteResult,
   CoursePlanView,
   GradeResult,
@@ -110,7 +116,49 @@ export const api = {
   logStudyMinutes: (minutes: number) => request<{ minutes: number }>("/api/planner/activity", { method: "POST", body: JSON.stringify({ minutes }) }),
   review: (stoneId: string, startedAt: string) => request<ReviewResult>(`/api/reviews/${stoneId}`, { method: "POST", body: JSON.stringify({ startedAt }) }),
   weeklyReports: () => request<{ lastWeek: WeeklyReportView; thisWeek: WeeklyReportView }>("/api/reports/weekly"),
+  decks: () => request<{ decks: DeckView[] }>("/api/decks"),
+  deck: (deckId: string) => request<DeckView>(`/api/decks/${deckId}`),
+  importDeck: (body: { storagePath: string; fileName: string | null } | { text: string; fileName: string | null }) =>
+    request<DeckView>("/api/decks/import", { method: "POST", body: JSON.stringify(body) }),
+  setDeckCap: (deckId: string, checkCap: number) => request<DeckView>(`/api/decks/${deckId}`, { method: "PUT", body: JSON.stringify({ checkCap }) }),
+  deleteDeck: (deckId: string) => request<{ deleted: boolean }>(`/api/decks/${deckId}`, { method: "DELETE" }),
+  checkDeck: (deckId: string) => request<DeckCheckProgress>(`/api/decks/${deckId}/check`, { method: "POST" }),
+  deckChecks: (deckId: string) => request<{ pending: CardCheckView[]; counts: Record<CardVerdict, number> }>(`/api/decks/${deckId}/checks`),
+  decideCheck: (checkId: string, decision: "accepted" | "dismissed") =>
+    request<CardCheckView>(`/api/card-checks/${checkId}/decision`, { method: "POST", body: JSON.stringify({ decision }) }),
+  deckSuggestions: (deckId: string) => request<{ suggestions: CardSuggestionView[] }>(`/api/decks/${deckId}/suggest`),
+  suggestCards: (deckId: string) =>
+    request<{ added: number; stonesLeft: number; suggestions: CardSuggestionView[] }>(`/api/decks/${deckId}/suggest`, { method: "POST" }),
+  decideSuggestion: (suggestionId: string, decision: "accepted" | "dismissed") =>
+    request<{ cardId: string | null }>(`/api/card-suggestions/${suggestionId}/decision`, { method: "POST", body: JSON.stringify({ decision }) }),
+  stoneCards: (stoneId: string) => request<{ cards: DeckCardView[] }>(`/api/stones/${stoneId}/cards`),
 };
+
+// Downloads a file from the API (signed in), for the deck export.
+export async function downloadFile(path: string, fallbackName: string): Promise<void> {
+  const session = await ensureSession();
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, { headers: { authorization: `Bearer ${session.access_token}` } });
+  } catch {
+    throw new ClientApiError("You seem to be offline. Check your connection and try again.", "offline", 0);
+  }
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as Partial<ApiErrorBody> | null;
+    throw new ClientApiError(body?.error?.message ?? "The download didn't work. Try again.", body?.error?.code ?? "error", response.status);
+  }
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+  const name = encoded ? decodeURIComponent(encoded) : fallbackName;
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
 
 // The phone's own time zone, for the planner's calendar days.
 export function deviceTimeZone(): string | null {
