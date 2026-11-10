@@ -12,7 +12,12 @@ import type {
   PathView,
   ProcessPartResult,
   ReadinessView,
+  ReviewResult,
   SearchResult,
+  StudyBlockView,
+  StudyProfileView,
+  TodayView,
+  WeeklyReportView,
   TextbookPartView,
   TextbookView,
 } from "@/lib/api-types";
@@ -93,4 +98,25 @@ export const api = {
   ask: (body: { stoneId: string; cardId: string; question: string }) =>
     request<AskAnswer>("/api/lessons/ask", { method: "POST", body: JSON.stringify(body) }),
   search: (q: string) => request<{ results: SearchResult[] }>(`/api/search?q=${encodeURIComponent(q)}`),
+  today: (timeZone: string | null) => request<TodayView>(`/api/planner/today${timeZone ? `?tz=${encodeURIComponent(timeZone)}` : ""}`),
+  studyProfile: () => request<StudyProfileView>("/api/planner/profile"),
+  saveStudyProfile: (body: Partial<StudyProfileView>) => request<StudyProfileView>("/api/planner/profile", { method: "PUT", body: JSON.stringify(body) }),
+  studyBlocks: () => request<{ blocks: StudyBlockView[] }>("/api/planner/blocks"),
+  saveStudyBlocks: (blocks: StudyBlockView[]) =>
+    request<{ blocks: StudyBlockView[] }>("/api/planner/blocks", {
+      method: "PUT",
+      body: JSON.stringify({ blocks: blocks.map(({ weekday, start, minutes, courseId }) => ({ weekday, start, minutes, courseId })) }),
+    }),
+  logStudyMinutes: (minutes: number) => request<{ minutes: number }>("/api/planner/activity", { method: "POST", body: JSON.stringify({ minutes }) }),
+  review: (stoneId: string, startedAt: string) => request<ReviewResult>(`/api/reviews/${stoneId}`, { method: "POST", body: JSON.stringify({ startedAt }) }),
+  weeklyReports: () => request<{ lastWeek: WeeklyReportView; thisWeek: WeeklyReportView }>("/api/reports/weekly"),
 };
+
+// The phone's own time zone, for the planner's calendar days.
+export function deviceTimeZone(): string | null {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+}

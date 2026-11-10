@@ -122,7 +122,7 @@ describe("path view", () => {
     expect(view.courses.map((c) => c.id)).toEqual(["fundamentals", "pharmacology"]);
     expect(view.courses[0].books[0].units.map((u) => u.title)).toEqual(["First", "Second"]);
     expect(view.courses[0].books[0].units[0].modules[0].stones.map((s) => s.id)).toEqual(["f1", "f2"]);
-    expect(view.counts).toEqual({ stones: 4, ready: 1, mastered: 1, needsReview: 1 });
+    expect(view.counts).toEqual({ stones: 4, ready: 1, mastered: 1, needsReview: 1, dueForReview: 0 });
     expect(view.nextStoneId).toBe("p1");
   });
 });

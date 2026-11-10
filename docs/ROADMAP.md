@@ -104,37 +104,44 @@ All 20 items, no database change. What each one became is listed in the pull req
 
 Migration tests for the new tables, functions and RLS; unit tests for PDF chunking by heading, splitting into parts, page numbers across parts, plan weeks, sources, coverage and fingerprints, Ask citations and search; a sign-in test for each new route. Still to write: an integration test that uploads a two-part PDF and checks the plan cites both parts (the integration suite needs PostgREST, which the build environment couldn't download).
 
-## Stage 4: Study planner, spaced review and habits
+## Stage 4: Study planner, spaced review and habits (built on `claude/study-planner`)
 
 ### What the owner gets
 
-- **Exam countdown (F3).** NCLEX-PN and HESI dates; the Path's pace adapts so every stone is mastered with a review buffer before the exam.
-- **Study-time map per path.** The student marks the times he can study each week (with his work shifts in mind) and how to split them across courses (Fundamentals, Pharm, Med-Surg, Maternal/Peds). The map shows each course path's blocks across the week and what lands in each block.
-- **Daily plan (F2).** A "Today" card at the top of the Path: stones to learn, stones due for review and a set of questions, sized to today's study blocks.
-- **Spaced repetition (F1).** Mastered stones come back on a schedule (an SM-2 style interval per stone, reset by a miss). Due stones show a small clock on the Path.
-- **Streaks and reminders (F13).** A daily streak, and a reminder at a time he picks: local notifications on Android (`@capacitor/local-notifications`), web push on the website.
-- **Weekly progress report (F18).** A weekly card: what was mastered, what slipped, readiness change and next week's focus.
+- **Exam countdown (F3).** NCLEX-PN and HESI dates in the planner sheet. The pace counts study days left to the nearest exam, minus a review-only buffer (14 days by default, 0 to 60), and says whether the path is on track, tight or behind.
+- **Study-time map per path.** Study times for each weekday, each one set to a course or to "any course", which goes to the course furthest behind. The sheet shows each course's minutes a week and previews the pace as times are added.
+- **Daily plan (F2).** A Today card at the top of the Path: reviews due (at most 40% of today's time), stones to learn, a question goal, today's study times, and what's done so far.
+- **Spaced repetition (F1).** Mastering a stone schedules a review for the next day. A review replays the stone's Quick Play questions; the share right sets the next interval (SM-2 style: all right is easy, 80% good, 60% hard, less is "again"). "Again" sends the stone back to the path to learn again. Reviews are pulled in to the day before an exam. Due stones show an amber clock on the Path and a "Due" count in the map key.
+- **Streaks and reminders (F13).** A daily streak on the Today card. Any study counts: a question answered, a stone mastered, a review, or minutes in a lesson. A daily reminder time is saved; on the website "Add to calendar" downloads a repeating calendar event with an alert.
+- **Weekly progress report (F18).** On Readiness: minutes against plan, days studied, questions and share right (with the change from the week before), reviews, stones mastered and slipped, and what to focus on next. Last week's report is kept as it was.
+
+### Changes from the plan
+
+- `study_profiles.weekly_minutes` was dropped. Each study block carries its course instead, which says the same thing with less to keep in step.
+- A `review_log` table records each review's grade and score, for the weekly report and for checking the schedule later.
+- Phone notifications aren't in yet. They need the `@capacitor/local-notifications` plugin, a new package, which waits for the owner's yes. Web push needs keys and settings on the hosting side, so the website uses a calendar reminder instead.
 
 ### Data model (migration `006_planner.sql`)
 
-- `study_profiles` (user_id primary key, nclex_date, hesi_date, reminder_time, timezone, weekly_minutes jsonb).
-- `study_blocks` (id, user_id, weekday, start_time, minutes, course_id).
-- `stone_reviews` (stone_id, user_id, interval_days, ease, due_on, last_reviewed_at, lapses).
-- `study_days` (user_id, day, minutes, stones_done, questions_answered) for streaks and reports.
-- `weekly_reports` (id, user_id, week_start, payload jsonb).
+- `study_profiles` (user_id primary key, nclex_date, hesi_date, reminder_time, timezone checked against real time zones, review_buffer_days).
+- `study_blocks` (id, user_id, weekday 1 to 7, start_time, minutes 10 to 480, course_id or null).
+- `stone_reviews` (stone_id primary key, user_id, interval_days, ease, reps, lapses, due_on, last_reviewed_at).
+- `review_log` (user_id, stone_id, grade, answered, correct, interval_days, reviewed_at).
+- `study_days` (user_id, day, minutes, stones_done, questions_answered, reviews_done), filled by `bump_study_day`, a trigger on `practice_attempts`, and `complete_stone`.
+- `weekly_reports` (user_id, week_start unique, payload).
+- `local_day()` gives the student's day in their saved time zone. `complete_stone` is replaced (same behaviour) to schedule the first review. Stones mastered before the update get a review spread over the next week.
 
 ### Routes
 
-- `GET/PUT /api/planner/profile`, `GET/PUT /api/planner/blocks`, `GET /api/planner/today`, `POST /api/reviews/{stoneId}`, `GET /api/reports/weekly`.
-- `complete_stone` is extended (new migration, not edited) to schedule the first review.
+- `GET/PUT /api/planner/profile`, `GET/PUT /api/planner/blocks`, `GET /api/planner/today?tz=`, `POST /api/planner/activity`, `POST /api/reviews/{stoneId}`, `GET /api/reports/weekly`.
 
 ### Screens
 
-Today card and due-review markers on the Path; a planner sheet (opened from the Today card, not a settings screen) with the exam dates and the weekly time map; the weekly report card on Readiness.
+Today card above the Path, review sheet, planner sheet (opened from the Today card), due clocks on the Path, weekly report card on Readiness. Minutes in a lesson (up to 90) count toward today.
 
 ### Tests
 
-SM-2 interval math, pacing math against exam dates and blocks, streak edges across time zones and midnight, route tests, and a migration test for the extended `complete_stone`.
+Pure math in `src/lib/study-math.ts` (SM-2, pacing, today's plan, streaks across time zones, weekly report, calendar reminder), labels in `src/lib/ui/planner-format.ts`, planner service tests, route sign-in tests, and `supabase/tests/004_planner_test.sql` for the tables, `local_day`, the trigger and the new `complete_stone`.
 
 ## Stage 5: Anki decks
 
@@ -201,5 +208,5 @@ Grading for each NGN type, game round generation stays in LPN scope, adaptive st
 ## Open questions for the owner, by stage
 
 - Stage 3: the textbook PDFs are for his own study only and stay private to his account. Confirm that's how he wants it.
-- Stage 4: reminder time and whether reminders should skip his work days.
+- Stage 4: whether to add phone notifications (the official Capacitor plugin), and whether they should skip his work days.
 - Stage 5: a per-import spending cap for the fact-check (the default will be shown before the first check runs).

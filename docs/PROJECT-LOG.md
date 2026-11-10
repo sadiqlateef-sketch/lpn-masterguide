@@ -66,13 +66,21 @@ A study app for LPN/LVN students, from day one to passing the NCLEX-PN and the H
 - Stage 2 fixed the 20 UI items: dock and bottom spacing on gesture-bar phones, light mode, course tabs with swipe and a remembered choice, Continue button and chapter jump list, a drawn trail between stones, clearer locked stones, Ready count, a weekly trend chart and tap-to-explain rings on Readiness, first-run screens, shimmer loading, colored story cards, a fading swipe hint, answer flashes, a bigger mastery celebration, the Fold's side-by-side lesson pane, and the phone's text size in the app.
 - Before and after screenshots are in `docs/ui-polish/`. No database change.
 
-### Next update, stage 3 (2026-11-10, branch `claude/sources-and-plans`, awaiting approval)
+### Next update, stage 3 (2026-11-10, merged and live)
 
 - Several NotebookLM notebooks: Magic + has a notebook picker, the sync script files each top-level subfolder as a notebook, and lesson cards name the notebook and source.
 - Whole textbook PDFs: "Add a whole book (PDF)" in Magic + splits big PDFs on the phone, uploads the parts straight to Storage and reads them one by one. Lessons then use the real pages and cite them.
 - Course plan: a Path / Plan switch on each course. Weeks of stones with goals, the book pages and notebooks behind each week, how well it's covered, and an NCLEX checkpoint per week. It redrafts when a source changes.
 - Ask about this card (a button on lesson cards) and one search box in Magic +.
-- Needs migration `005_sources_and_plans.sql` on the live database before the merge. It is written and tested on a scratch database, not applied.
+- Migration `005_sources_and_plans.sql` was applied to the live database on 2026-11-10 before the merge.
+
+### Next update, stage 4 (2026-11-10, branch `claude/study-planner`, awaiting approval)
+
+- Today card at the top of the Path: reviews due, stones to learn and a question goal sized to today's study times, a streak, and the pace toward the next exam.
+- Planner sheet: NCLEX-PN and HESI dates, a review-only buffer, study times per weekday with a course each, and a daily reminder (a calendar download on the website).
+- Spaced review: a mastered stone comes back the next day, then further out the better each review goes. Due stones show a clock on the Path. A poor review sends the stone back to learn again.
+- Weekly report on Readiness.
+- Needs migration `006_planner.sql` on the live database before the merge. It is written and tested on a scratch database, not applied.
 
 ## Going live (2026-10-19 to 2026-11-10)
 
@@ -113,7 +121,8 @@ Push to `main` on GitHub and Vercel redeploys on its own. A database change goes
 
 ## Open items
 
-- **Migration 005:** apply `005_sources_and_plans.sql` to the live Supabase project before stage 3 goes live.
+- **Migration 006:** apply `006_planner.sql` to the live Supabase project before stage 4 goes live.
+- **Phone reminders:** need the `@capacitor/local-notifications` plugin, waiting on the owner's yes.
 - **Note uploads over 4.5 MB:** Vercel caps a request body at about 4.5 MB, so a large PDF note sent through Magic + or the sync script may fail even though the app allows 25 MB. Textbook PDFs avoid this by going straight to Storage; notes could do the same later.
 
 - **Signed release build:** not made yet. It's needed before sharing the app or publishing to Google Play.

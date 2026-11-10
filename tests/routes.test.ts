@@ -18,6 +18,12 @@ import { GET as searchGet } from "@/app/api/search/route";
 import { POST as textbookParts } from "@/app/api/textbooks/[textbookId]/parts/route";
 import { POST as textbookProcess } from "@/app/api/textbooks/[textbookId]/process/route";
 import { GET as textbooksGet } from "@/app/api/textbooks/route";
+import { POST as plannerActivity } from "@/app/api/planner/activity/route";
+import { GET as blocksGet, PUT as blocksPut } from "@/app/api/planner/blocks/route";
+import { GET as profileGet, PUT as profilePut } from "@/app/api/planner/profile/route";
+import { GET as todayGet } from "@/app/api/planner/today/route";
+import { GET as weeklyGet } from "@/app/api/reports/weekly/route";
+import { POST as reviewPost } from "@/app/api/reviews/[stoneId]/route";
 
 const ID = "6f1c2c1e-4c7b-4a4e-9a51-0c6f3a1d2b7e";
 const json = (body: unknown) => ({ method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json" } });
@@ -45,6 +51,14 @@ const handlers = [
   ["course-plans generate", () => planGenerate(new Request("http://x/api/course-plans/generate", json({ courseId: "pharmacology" })))],
   ["lessons/ask", () => lessonAsk(new Request("http://x/api/lessons/ask", json({ stoneId: ID, cardId: "eli10", question: "Why?" })))],
   ["search", () => searchGet(new Request("http://x/api/search?q=digoxin"))],
+  ["planner/profile GET", () => profileGet(new Request("http://x/api/planner/profile"))],
+  ["planner/profile PUT", () => profilePut(new Request("http://x/api/planner/profile", { ...json({ nclexDate: "2027-03-01" }), method: "PUT" }))],
+  ["planner/blocks GET", () => blocksGet(new Request("http://x/api/planner/blocks"))],
+  ["planner/blocks PUT", () => blocksPut(new Request("http://x/api/planner/blocks", { ...json({ blocks: [] }), method: "PUT" }))],
+  ["planner/today", () => todayGet(new Request("http://x/api/planner/today?tz=America/New_York"))],
+  ["planner/activity", () => plannerActivity(new Request("http://x/api/planner/activity", json({ minutes: 10 })))],
+  ["reviews", () => reviewPost(new Request(`http://x/api/reviews/${ID}`, json({ startedAt: new Date().toISOString() })), { params: Promise.resolve({ stoneId: ID }) })],
+  ["reports/weekly", () => weeklyGet(new Request("http://x/api/reports/weekly"))],
 ] as const;
 
 describe("API routes", () => {

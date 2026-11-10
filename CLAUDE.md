@@ -62,6 +62,14 @@ The owner wants speed and thoroughness over saving tokens: build complete featur
 - Course plans (`src/lib/server/course-plan.ts`): Claude only groups stones (by S-number) into weeks with titles and goals; `tidyPlan` keeps every stone once and in path order. The server, not the model, fills each week's sources and coverage from `course_plan_sources`. A week's checkpoint is picked at read time from its stones' practice items. A plan is stale when its source fingerprint changes, and the Plan view redrafts it.
 - Ask about this card (`src/lib/server/ask.ts`) and search (`src/lib/server/search.ts`, SQL `search_study`): citations are checked in code against the numbered sources.
 
+## Planner and spaced review (stage 4)
+
+- All the math is pure, in `src/lib/study-math.ts`, shared by server and client: SM-2 (`gradeFromScore`, `nextReview`, `reviewDueOn`), pacing (`pace`), today's plan (`planToday`), `streak`, `weeklyReport`, `reminderIcs`. Server code is `src/lib/server/planner.ts`.
+- The student's day comes from the planner's time zone: SQL `local_day()`, TS `localDay(at, tz)`. Until a profile is saved, `GET /api/planner/today?tz=` saves the phone's time zone.
+- `study_days` counts activity: the `practice_attempts` trigger adds questions, `complete_stone` adds a stone mastered, a review adds a review, and the app posts lesson minutes to `/api/planner/activity`.
+- A review scores the stone's lesson items answered since the round started (`POST /api/reviews/{stoneId}` with `startedAt`). It needs the stone mastered; "again" sets it to `needs_review`.
+- Phone notifications aren't built: they need `@capacitor/local-notifications`, which hasn't been approved. The website offers an .ics calendar reminder.
+
 ## Android app (Phase 4)
 
 - `MOBILE_BUILD=1 next build` (`npm run mobile:build`) static-exports the screens to `out/`, Capacitor's `webDir`. In that mode only `.tsx`/`.jsx` count as pages, so `route.ts` and `middleware.ts` are left out; the app calls the hosted API at `NEXT_PUBLIC_API_BASE_URL` (`API_BASE` in `src/lib/client/api.ts`). Keep screens free of server-only imports and dynamic routes so the export keeps working.
