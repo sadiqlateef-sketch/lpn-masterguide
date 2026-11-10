@@ -4,7 +4,7 @@ import { generateStructured } from "./anthropic";
 import { LessonSchema, type Bowtie, type Lesson } from "./ai-schemas";
 import { env } from "./env";
 import { ApiError } from "./http";
-import { toPracticeView, type ChoicePayload, type PracticeRow } from "./practice";
+import { loadPracticeRows, tidyOptionRationales, toPracticeView, type ChoicePayload, type PracticeRow } from "./practice";
 import { pageLabel } from "./text/pdf-chunk";
 import { LPN_SCOPE_RULES } from "./prompts";
 import { check, type UserContext } from "./supabase";
@@ -194,7 +194,7 @@ Cards:
 2. The LPN Core: three sub-cards in order: what is happening in the body; signs and the data the LPN collects; LPN actions. At most 3 bullets each, each bullet under 20 words.
 3. HESI Hint & NCLEX Alert: the single most tested trap, priority rule (ABCs, Maslow, safety, acute before chronic, actual before potential) or early-versus-late sign for this topic. If the student missed practice questions, aim this card at what they missed. At most 3 bullets.
 4. From Your NotebookLM: quote up to 3 pearls, mnemonics or professor tips word for word from the student's notes, naming the note number each comes from. Never reword a quote and never invent one. If there are no notes, return an empty list.
-5. Quick Play: two brand-new multiple-choice questions (4 options, ids "A" to "D", one correct unless select-all suits the concept) and one NGN mini bowtie (condition: 4 options ids "A" to "D", 1 correct; actions and parameters: 5 options each, ids "A" to "E", 2 correct each).
+5. Quick Play: two brand-new multiple-choice questions (4 options, ids "A" to "D", one correct unless select-all suits the concept), each with a one-sentence reason for every option, and one NGN mini bowtie (condition: 4 options ids "A" to "D", 1 correct; actions and parameters: 5 options each, ids "A" to "E", 2 correct each).
 
 Rules:
 - When passages from the student's own textbook are given, build the LPN Core cards on them: they are the course's text. Keep the lesson's level and length the same.
@@ -362,7 +362,14 @@ export function tidyLesson(raw: Lesson, notes: readonly LessonNote[]): TidyLesso
   const quiz = raw.quiz
     .filter((q) => q.stem.trim() && validChoices(q.options, q.correct_option_ids, 3))
     .slice(0, MAX_QUIZ)
-    .map((q) => ({ stem: q.stem.trim(), options: q.options, correct_option_ids: q.correct_option_ids, rationale: q.rationale.trim(), ngn_step_id: q.ngn_step_id }));
+    .map((q) => ({
+      stem: q.stem.trim(),
+      options: q.options,
+      correct_option_ids: q.correct_option_ids,
+      rationale: q.rationale.trim(),
+      option_rationales: tidyOptionRationales(q.option_rationales, q.options),
+      ngn_step_id: q.ngn_step_id,
+    }));
 
   return {
     eli10: { title: raw.eli10.title.trim() || "The big idea", body: raw.eli10.analogy.trim() },
@@ -446,15 +453,6 @@ export function lessonCards(stored: StoredLesson, practiceCount: number): Lesson
     });
   }
   return cards;
-}
-
-async function loadPracticeRows(ctx: UserContext, ids: readonly string[]): Promise<PracticeRow[]> {
-  if (ids.length === 0) return [];
-  const rows = check(
-    await ctx.supabase.from("practice_items").select("id, stone_id, item_type, origin_question_id, payload").in("id", ids),
-    "load practice",
-  ) as PracticeRow[];
-  return ids.map((id) => rows.find((r) => r.id === id)).filter((r): r is PracticeRow => Boolean(r));
 }
 
 function toView(context: StoneContext, stored: StoredLesson, practice: PracticeRow[], cached: boolean): LessonView {

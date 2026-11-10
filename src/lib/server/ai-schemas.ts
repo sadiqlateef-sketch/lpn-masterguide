@@ -79,6 +79,11 @@ export const StoneTagsSchema = z.object({
 
 const ChoiceSchema = z.object({ id: z.string(), text: z.string() });
 
+// One short reason per option, right or wrong (F6).
+export const OptionRationalesSchema = z
+  .array(z.object({ option_id: z.string(), why: z.string().describe("One sentence") }))
+  .describe("For every option: why it is right or wrong");
+
 export const UWorldSchema = z.object({
   is_question: z.boolean().describe("False if this is not a practice question or its explanation"),
   question_type: z.enum(["single_answer", "select_all", "ngn_other"]),
@@ -114,6 +119,7 @@ export const TwinPracticeSchema = z.object({
     correct_option_ids: z.array(z.string()),
     rationale: z.string(),
     lpn_scope_note: z.string().describe("Why the right answer fits LPN/LVN scope"),
+    option_rationales: OptionRationalesSchema,
   }),
   bowtie: BowtieSchema,
 });
@@ -157,6 +163,7 @@ export const LessonSchema = z.object({
         options: z.array(ChoiceSchema),
         correct_option_ids: z.array(z.string()),
         rationale: z.string().describe("Two sentences at most"),
+        option_rationales: OptionRationalesSchema,
         ngn_step_id: z.enum(NGN_STEP_IDS),
       }),
     )
@@ -221,3 +228,102 @@ export const CardSuggestionSchema = z.object({
     .describe("Up to three new cards"),
 });
 export type CardSuggestionRaw = z.infer<typeof CardSuggestionSchema>;
+
+// ---------------------------------------------------------------------------
+// Stage 6: more NGN item types, game rounds, round questions and drug cards
+// ---------------------------------------------------------------------------
+
+export const NgnSetSchema = z.object({
+  matrix: z.object({
+    stem: z.string(),
+    columns: z.array(ChoiceSchema).describe("2 or 3 columns, such as Indicated / Not indicated"),
+    rows: z.array(ChoiceSchema).describe("4 to 6 rows"),
+    answers: z.array(z.object({ row: z.string(), column: z.string() })).describe("Exactly one column for every row"),
+    rationale: z.string(),
+    ngn_step_id: z.enum(NGN_STEP_IDS),
+  }),
+  cloze: z.object({
+    stem: z.string(),
+    text: z.string().describe("Sentences with {{1}}, {{2}} markers where each drop-down goes"),
+    blanks: z.array(z.object({ id: z.string(), options: z.array(ChoiceSchema), correct_option_id: z.string() })).describe("2 or 3 blanks, 3 or 4 options each"),
+    rationale: z.string(),
+    ngn_step_id: z.enum(NGN_STEP_IDS),
+  }),
+  highlight: z.object({
+    stem: z.string(),
+    segments: z.array(ChoiceSchema).describe("A short nurse's note split into 6 to 10 phrases, in reading order"),
+    correct_ids: z.array(z.string()),
+    rationale: z.string(),
+    ngn_step_id: z.enum(NGN_STEP_IDS),
+  }),
+  ordered: z.object({
+    stem: z.string(),
+    items: z.array(ChoiceSchema).describe("4 or 5 steps"),
+    correct_order: z.array(z.string()).describe("Every item id, first to last"),
+    rationale: z.string(),
+    ngn_step_id: z.enum(NGN_STEP_IDS),
+  }),
+});
+export type NgnSet = z.infer<typeof NgnSetSchema>;
+
+const RoundQuestionSchema = z.object({
+  stem: z.string(),
+  options: z.array(ChoiceSchema),
+  correct_option_ids: z.array(z.string()),
+  rationale: z.string().describe("Two sentences at most"),
+  option_rationales: OptionRationalesSchema,
+  ngn_step_id: z.enum(NGN_STEP_IDS),
+});
+
+export const RoundQuestionsSchema = z.object({ questions: z.array(RoundQuestionSchema).describe("Two questions") });
+export type RoundQuestions = z.infer<typeof RoundQuestionsSchema>;
+
+export const MedMatchSchema = z.object({
+  pairs: z
+    .array(
+      z.object({
+        medication: z.string().describe("Generic name"),
+        match: z.string().describe("Its class, main effect or key nursing action, in a few words"),
+        why: z.string().describe("One sentence"),
+        quote: z.string().describe("Words copied from a numbered source that back this pair, or empty"),
+        source: z.number().describe("The [n] of that source, or -1"),
+      }),
+    )
+    .describe("6 pairs, each a different medication with a different match"),
+});
+export type MedMatchRaw = z.infer<typeof MedMatchSchema>;
+
+export const TriageSchema = z.object({
+  setting: z.string().describe("One sentence: the unit and what the LPN is doing"),
+  clients: z
+    .array(
+      z.object({
+        summary: z.string().describe("One client in one or two sentences"),
+        rank: z.number().describe("1 is seen first"),
+        unstable: z.boolean().describe("True when this client needs the RN now"),
+        why: z.string().describe("One sentence naming the priority rule"),
+      }),
+    )
+    .describe("Exactly 4 clients"),
+});
+export type TriageRaw = z.infer<typeof TriageSchema>;
+
+const DrugFieldSchema = z.object({
+  text: z.string(),
+  quote: z.string().describe("Words copied from a numbered source that back this field, or empty"),
+  source: z.number().describe("The [n] of that source, or -1"),
+});
+
+export const DrugCardSchema = z.object({
+  is_medication: z.boolean().describe("False when the name is not a medication"),
+  name: z.string().describe("Generic name, with a common brand in parentheses"),
+  drug_class: DrugFieldSchema,
+  action: DrugFieldSchema,
+  uses: DrugFieldSchema,
+  side_effects: DrugFieldSchema,
+  nursing: DrugFieldSchema.describe("What the LPN checks and does"),
+  teaching: DrugFieldSchema.describe("What the LPN reinforces with the client"),
+  hold_parameters: DrugFieldSchema.describe("When to hold and report, or empty text"),
+  questions: z.array(RoundQuestionSchema).describe("Two NCLEX-PN style questions on this drug"),
+});
+export type DrugCardRaw = z.infer<typeof DrugCardSchema>;

@@ -122,7 +122,7 @@ describe("uploads", () => {
 describe("validateTwin", () => {
   const options = ["A", "B", "C", "D", "E"].map((id) => ({ id, text: id }));
   const good: schemas.TwinPractice = {
-    twin: { stem: "s", options: options.slice(0, 4), correct_option_ids: ["B"], rationale: "r", lpn_scope_note: "n" },
+    twin: { stem: "s", options: options.slice(0, 4), correct_option_ids: ["B"], rationale: "r", lpn_scope_note: "n", option_rationales: [] },
     bowtie: {
       scenario: "s",
       condition: { prompt: "p", options: options.slice(0, 4), correct_option_id: "A" },

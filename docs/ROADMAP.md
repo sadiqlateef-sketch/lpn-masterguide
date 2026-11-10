@@ -184,38 +184,59 @@ Each deck may check up to 200 cards at first. The student can allow 200 more at 
 
 `tests/anki-apkg.test.ts` (field text, cloze, a compressed modern collection inside a zip, a non-deck file, text exports, and the export round trip with stable ids), `tests/anki-check.test.ts` (quote matching, the verdict and escalation rules, suggestion cleanup) and `supabase/tests/005_anki_test.sql` (filing cards, the cap, accept and dismiss, suggestions, and that another student sees nothing).
 
-## Stage 6: Games, practice and the remaining features
+## Stage 6a: Games and practice (built on `claude/games-and-practice`)
 
-### Games (each round ends with NCLEX-style questions)
+Stage 6 is split in two so each part can be reviewed and merged on its own. 6a is the games and the practice features; 6b (below) is the rest.
 
-- **Med match:** pairs game matching a medication to its effect, class or key nursing action.
-- **Lab value higher or lower:** is this value high, low or normal, and what does the LPN do next.
-- **Priority triage sort:** order four clients by who the LPN sees first (ABCs, Maslow, safety, acute over chronic), with the stable/unstable line marked so RN-only clients are handed off.
-- **PPE order:** drag the PPE items into donning and doffing order.
-- **Med-math speed round:** dosage, drip rates and conversions against a timer, with worked steps.
-- **Scope or not:** swipe tasks into LPN, RN or UAP.
-- **Isolation match:** match diseases to contact, droplet or airborne precautions.
+### What the owner gets
 
-Games draw from the student's stones and sources, so they cover what he's studying. Scores feed readiness by client need.
+A new **Practice** tab in the dock, with:
 
-### Remaining features
+- **Seven games**, each ending with NCLEX-style questions:
+  - **Med match:** pair four to six medications from the stones he has studied with a class, effect or key nursing action. Written from his passages; a note only counts when it quotes them.
+  - **Lab values: high or low?** Sort six lab results into low, normal and high, from a fixed bank of 16 common labs with what the LPN does next.
+  - **Priority triage:** put four clients from his stones in the order to see them. The results name the priority rule for each and mark any unstable client the RN needs now.
+  - **PPE order:** put on, or take off, PPE in the CDC order.
+  - **Med-math speed round:** five problems (tablets, liquids, weight-based doses, gravity drip, pump rate, conversions) in five minutes. Numbers are built in code so every answer is exact, with worked steps and a note on leading and trailing zeros.
+  - **Scope or not:** sort six tasks to the LPN, the RN or the UAP (bank of 21).
+  - **Isolation match:** sort six diseases into contact, droplet and airborne precautions (bank of 16).
+- **Round endings:** up to three of his own questions on the round's stones or its client need. If fewer than two exist, two new ones are written from the round's content.
+- **Practice exams (F4):** short (15 to 40 questions, 1 hour) or long (30 to 85, 2 hours), drawn from his own questions, weighted by NCLEX-PN client needs. No feedback until it ends. It stops once the estimate is clearly above or below a passing line, or at the question or time limit. The result shows right answers by client need and a plain-words verdict that always says it isn't a prediction of his NCLEX result.
+- **NGN question types (F5):** matrix, drop-down cloze, highlight and ordered response, written four at a time per stone from his sources (up to 12 per stone), in "NGN practice by stone".
+- **A reason for every option (F6):** new lesson quizzes, UWorld twins and every stage 6 question explain why each option is right or wrong.
+- **Drug cards (F9):** type a medication and get a card (class, action, uses, side effects, nursing, teaching, hold parameters). Fields backed by his textbook passages or notes are marked "From your sources" with the quote; the rest is general drug-guide knowledge and says so. Each card ends with two questions.
+- **Mistake notebook (F10):** every question whose latest answer was wrong, from lessons, reviews, games and exams, with a note he can keep on each and "Redo" to play them again.
 
-Timed adaptive practice exams (F4), more NGN item types (F5), rationales for every option (F6), med-math drills (F7), lab values trainer (F8), drug cards (F9), mistake notebook (F10), offline lessons (F12, a downloaded chapter cached on the phone), audio playlist mode (F14), clinical day prep (F15), LPN-scope care plan builder (F16), skills checklists (F17) and share a deck (F20, a read-only link to a lesson or question set, with no personal notes).
+### Changes from the plan
+
+- **Split into 6a and 6b.** Offline lessons (F12), audio playlist (F14), clinical day prep (F15), care plan builder (F16), skills checklists (F17) and share a deck (F20) move to 6b.
+- **Med-math drills (F7) and the lab values trainer (F8) are games** (the med-math speed round and lab values) instead of separate screens.
+- **One `game_rounds` table** instead of game sessions plus rounds: each round is played once and saved with its answer.
+- **Fixed banks for four games.** Lab values, PPE, scope and isolation use curated content written in code, not his sources, so the facts are reliable. Med match and triage come from his studied stones.
+- **Readiness counts games.** A round counts once toward its client need, as right when 80% or more was right. Questions with no stone (round endings, drug card questions) count by their own client need.
+- **Exam difficulty is rough.** Each question's difficulty is estimated from its type and his own history with it, not from calibrated data, so the stop rule and verdict are a guide.
+- **Scores live in the rounds table;** there's no leaderboard or streak for games.
 
 ### Data model (migration `008_games_and_practice.sql`)
 
-- `practice_items.item_type` gains the new NGN types and game types (new check constraint).
-- `game_sessions` (id, user_id, game, stone_ids, score, duration_ms, finished_at) and `game_rounds`.
-- `exam_sessions` (id, user_id, kind, started_at, finished_at, ability_estimate, stop_reason) and `exam_answers`.
-- `drug_cards`, `skills_checklists` and `skill_checks`, `shared_decks` (token, item ids, expires_at).
+- `practice_items`: `stone_id` may be empty when `client_need_id` is set; new item types `ngn_matrix`, `ngn_cloze`, `ngn_highlight`, `ngn_ordered`, `drug_mcq` and `round_mcq`.
+- `game_rounds` (game, stones, client need, the stored round and answer key, ending question ids, total, correct, duration, answered_at).
+- `exam_sessions` (limits, current question, ability estimate and standard error, stop reason) and `exam_answers` (one per question per exam).
+- `drug_cards` (one per medication name per student) and `mistake_notes` (one per question).
+- `my_mistakes(limit)` and a rewritten `readiness_by_client_need()`.
+- Row-level security on all five new tables, owner only.
 
 ### Routes
 
-`/api/games/{game}/round` and `/api/games/{game}/finish`, `/api/exams/start`, `/api/exams/{id}/answer`, `/api/drug-cards`, `/api/clinical-prep`, `/api/care-plans`, `/api/skills`, `/api/share`.
+`GET /api/games`, `POST /api/games/{game}/round`, `POST /api/games/rounds/{id}/answer`, `GET|POST /api/exams`, `GET /api/exams/{id}`, `POST /api/exams/{id}/answer`, `POST /api/exams/{id}/end`, `GET|POST /api/drug-cards`, `GET|DELETE /api/drug-cards/{id}`, `GET /api/mistakes`, `PUT /api/mistakes/{itemId}/note`, `GET|POST /api/stones/{id}/ngn`.
 
 ### Tests
 
-Grading for each NGN type, game round generation stays in LPN scope, adaptive stop rule, med-math answer checking with units, share links never expose notes.
+`tests/games.test.ts` (med-math answers and coaching, the banks, round building and grading, ending order), `tests/ngn-exams.test.ts` (NGN tidying, grading and hidden answers, the adaptive estimate and stop rule, drug card source marks) and `supabase/tests/006_games_test.sql` (item checks, mistakes, readiness counts, round and exam rules, isolation between students).
+
+## Stage 6b: The remaining features (next)
+
+Offline lessons (F12, a downloaded chapter cached on the phone), audio playlist mode (F14), clinical day prep (F15), LPN-scope care plan builder (F16), skills checklists (F17) and share a deck (F20, a read-only link to a lesson or question set, with no personal notes). Its own migration and pull request, after 6a is merged.
 
 ## Open questions for the owner, by stage
 

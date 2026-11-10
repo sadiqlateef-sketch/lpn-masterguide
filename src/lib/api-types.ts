@@ -51,7 +51,17 @@ export type PracticeView =
       condition: { prompt: string; options: ChoiceView[]; pick: 1 };
       actions: { prompt: string; options: ChoiceView[]; pick: number };
       parameters: { prompt: string; options: ChoiceView[]; pick: number };
-    };
+    }
+  // NGN matrix: pick one column for each row.
+  | { id: string; type: "matrix"; origin: PracticeOrigin; stem: string; columns: ChoiceView[]; rows: ChoiceView[] }
+  // NGN drop-down cloze: `text` holds {{blankId}} markers, one drop-down per blank.
+  | { id: string; type: "cloze"; origin: PracticeOrigin; stem: string; text: string; blanks: { id: string; options: ChoiceView[] }[] }
+  // NGN highlight: tap the parts of the passage that answer the stem.
+  | { id: string; type: "highlight"; origin: PracticeOrigin; stem: string; segments: ChoiceView[] }
+  // NGN ordered response: put every step in order.
+  | { id: string; type: "ordered"; origin: PracticeOrigin; stem: string; items: ChoiceView[] };
+
+export type PracticeType = PracticeView["type"];
 
 export type LessonView = {
   stoneId: string;
@@ -63,7 +73,19 @@ export type LessonView = {
 
 export type BowtieAnswer = { condition: string; actions: string[]; parameters: string[] };
 
-export type AttemptRequest = { itemId: string; selected?: string[]; bowtie?: BowtieAnswer };
+export type AttemptRequest = {
+  itemId: string;
+  // Multiple choice, select-all and highlight.
+  selected?: string[];
+  bowtie?: BowtieAnswer;
+  // Matrix: row id to column id. Cloze: blank id to option id.
+  matrix?: Record<string, string>;
+  cloze?: Record<string, string>;
+  // Ordered response: every item id, first to last.
+  order?: string[];
+};
+
+export type OptionRationale = { id: string; why: string };
 
 export type GradeResult = {
   attemptId: string;
@@ -74,6 +96,11 @@ export type GradeResult = {
   // For multiple choice: the right option ids. For a bowtie: the right ids per section.
   correctOptionIds?: string[];
   bowtie?: BowtieAnswer;
+  matrix?: Record<string, string>;
+  cloze?: Record<string, string>;
+  order?: string[];
+  // Why each option is right or wrong, when the question has them.
+  optionRationales?: OptionRationale[];
 };
 
 export type CompleteResult = {
@@ -343,3 +370,116 @@ export type DeckCheckProgress = {
 export type DeckCardView = { id: string; front: string; back: string; origin: "import" | "suggested" };
 
 export type ApiErrorBody = { error: { code: string; message: string } };
+
+// ---------------------------------------------------------------------------
+// Games, practice exams, drug cards and the mistake notebook (stage 6)
+// ---------------------------------------------------------------------------
+
+export const GAME_IDS = ["med_match", "lab_levels", "triage", "ppe_order", "med_math", "scope", "isolation"] as const;
+export type GameId = (typeof GAME_IDS)[number];
+
+export type GameSummary = {
+  id: GameId;
+  title: string;
+  blurb: string;
+  // Built from the student's own stones (needs studied stones), or from a fixed bank.
+  fromStones: boolean;
+  available: boolean;
+  unavailableReason: string | null;
+  played: number;
+  bestPct: number | null;
+  lastPct: number | null;
+};
+
+export type GameRoundView =
+  | { kind: "match"; prompt: string; left: ChoiceView[]; right: ChoiceView[] }
+  | { kind: "bins"; prompt: string; bins: ChoiceView[]; cards: ChoiceView[] }
+  | { kind: "order"; prompt: string; items: ChoiceView[] }
+  | { kind: "calc"; prompt: string; problems: { id: string; text: string; unit: string }[] };
+
+export type GameRound = {
+  roundId: string;
+  game: GameId;
+  title: string;
+  stones: { id: string; title: string }[];
+  // Seconds for a speed round, or null.
+  timeLimitSeconds: number | null;
+  view: GameRoundView;
+};
+
+// match: left id to right id. bins: card id to bin id. order: ids first to last. calc: problem id to the typed answer.
+export type GameAnswer = { match?: Record<string, string>; bins?: Record<string, string>; order?: string[]; calc?: Record<string, string> };
+
+export type GameItemResult = {
+  id: string;
+  label: string;
+  correct: boolean;
+  // What the right answer was, in words, and why.
+  expected: string;
+  given: string | null;
+  why: string;
+  steps?: string[];
+};
+
+export type GameResult = {
+  roundId: string;
+  correct: number;
+  total: number;
+  pct: number;
+  bestPct: number | null;
+  items: GameItemResult[];
+  // NCLEX-style questions that close the round.
+  ending: PracticeView[];
+};
+
+export type ExamItemView = { examId: string; position: number; item: PracticeView };
+
+export type ExamStopReason = "confident_above" | "confident_below" | "max_items" | "time" | "out_of_items" | "ended";
+
+export type ExamSummary = {
+  id: string;
+  startedAt: string;
+  finishedAt: string | null;
+  minItems: number;
+  maxItems: number;
+  timeLimitMinutes: number;
+  answered: number;
+  correct: number;
+  ability: number;
+  standardError: number;
+  stopReason: ExamStopReason | null;
+  // Plain-words reading of the estimate, with the caveat that it's practice.
+  verdict: string;
+  byClientNeed: { id: string; name: string; answered: number; correct: number }[];
+};
+
+export type ExamState = { summary: ExamSummary; current: ExamItemView | null };
+
+export type ExamAnswerResult = { grade: GradeResult; state: ExamState };
+
+export type DrugCardField = { text: string; fromSources: boolean };
+
+export type DrugCardView = {
+  id: string;
+  name: string;
+  createdAt: string;
+  drugClass: DrugCardField;
+  action: DrugCardField;
+  uses: DrugCardField;
+  sideEffects: DrugCardField;
+  nursing: DrugCardField;
+  teaching: DrugCardField;
+  holdParameters: DrugCardField | null;
+  sources: SourceQuote[];
+  stone: { id: string; title: string } | null;
+  questions: PracticeView[];
+};
+
+export type MistakeView = {
+  item: PracticeView;
+  stoneTitle: string | null;
+  topic: string | null;
+  missedAt: string;
+  misses: number;
+  note: string;
+};

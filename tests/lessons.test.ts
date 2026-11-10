@@ -47,9 +47,9 @@ function draft(overrides: Partial<Lesson> = {}): Lesson {
       { note_index: 7, quote: "Daily weight, same scale, same time." },
     ],
     quiz: [
-      { stem: "Pulse is 54. What do you do?", options: options.slice(0, 4), correct_option_ids: ["B"], rationale: "Hold it.", ngn_step_id: "take_action" },
-      { stem: "Broken question", options: options.slice(0, 4), correct_option_ids: ["Z"], rationale: "", ngn_step_id: "take_action" },
-      { stem: "Which are toxicity signs?", options, correct_option_ids: ["A", "D"], rationale: "Both.", ngn_step_id: "recognize_cues" },
+      { stem: "Pulse is 54. What do you do?", options: options.slice(0, 4), correct_option_ids: ["B"], rationale: "Hold it.", option_rationales: [], ngn_step_id: "take_action" },
+      { stem: "Broken question", options: options.slice(0, 4), correct_option_ids: ["Z"], rationale: "", option_rationales: [], ngn_step_id: "take_action" },
+      { stem: "Which are toxicity signs?", options, correct_option_ids: ["A", "D"], rationale: "Both.", option_rationales: [], ngn_step_id: "recognize_cues" },
     ],
     checkpoint: bowtie,
     ...overrides,

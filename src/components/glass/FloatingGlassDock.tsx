@@ -1,11 +1,11 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { Gauge, Map, Plus } from "lucide-react";
+import { Dumbbell, Gauge, Map, Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { GLASS_SURFACE } from "./GlassCard";
 
-export type DockTab = "path" | "readiness";
+export type DockTab = "path" | "practice" | "readiness";
 
 type FloatingGlassDockProps = {
   active: DockTab;
@@ -18,12 +18,13 @@ type FloatingGlassDockProps = {
 
 const TABS: { id: DockTab; label: string; Icon: typeof Map }[] = [
   { id: "path", label: "Path", Icon: Map },
+  { id: "practice", label: "Practice", Icon: Dumbbell },
   { id: "readiness", label: "Readiness", Icon: Gauge },
 ];
 
 export function FloatingGlassDock({ active, onTabChange, onMagicAdd, className, inert, style }: FloatingGlassDockProps) {
   const reduceMotion = useReducedMotion();
-  const [pathTab, readinessTab] = TABS;
+  const [pathTab, practiceTab, readinessTab] = TABS;
 
   const renderTab = ({ id, label, Icon }: (typeof TABS)[number]) => {
     const isActive = active === id;
@@ -33,7 +34,7 @@ export function FloatingGlassDock({ active, onTabChange, onMagicAdd, className, 
         type="button"
         onClick={() => onTabChange(id)}
         aria-current={isActive ? "page" : undefined}
-        className="relative flex min-h-14 min-w-20 flex-col px-3 items-center justify-center gap-1 rounded-full text-xs font-semibold focus-visible:outline-2 focus-visible:outline-sky-300"
+        className="relative flex min-h-14 min-w-[4.5rem] flex-col px-2 items-center justify-center gap-1 rounded-full text-xs font-semibold focus-visible:outline-2 focus-visible:outline-sky-300"
       >
         {isActive && (
           <motion.span
@@ -54,7 +55,7 @@ export function FloatingGlassDock({ active, onTabChange, onMagicAdd, className, 
       inert={inert}
       style={style}
       className={cn(
-        "fixed inset-x-0 bottom-[calc(1rem+var(--safe-bottom))] z-50 mx-auto flex w-fit items-center gap-3 rounded-full px-3 py-2",
+        "fixed inset-x-0 bottom-[calc(1rem+var(--safe-bottom))] z-50 mx-auto flex w-fit items-center gap-2 rounded-full px-3 py-2",
         GLASS_SURFACE,
         // Darker than other glass so the page scrolling underneath never fights with the labels.
         "bg-dock",
@@ -63,6 +64,7 @@ export function FloatingGlassDock({ active, onTabChange, onMagicAdd, className, 
       )}
     >
       {renderTab(pathTab)}
+      {renderTab(practiceTab)}
       <motion.button
         type="button"
         onClick={onMagicAdd}

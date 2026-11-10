@@ -95,7 +95,7 @@ const handHygieneQuestion: UWorldQuestion = {
 
 const options = ["A", "B", "C", "D", "E"].map((id) => ({ id, text: `Option ${id}` }));
 const twin: TwinPractice = {
-  twin: { stem: "A new client...", options: options.slice(0, 4), correct_option_ids: ["C"], rationale: "r", lpn_scope_note: "Within LPN scope." },
+  twin: { stem: "A new client...", options: options.slice(0, 4), correct_option_ids: ["C"], rationale: "r", lpn_scope_note: "Within LPN scope.", option_rationales: [] },
   bowtie: {
     scenario: "s",
     condition: { prompt: "p", options: options.slice(0, 4), correct_option_id: "A" },
