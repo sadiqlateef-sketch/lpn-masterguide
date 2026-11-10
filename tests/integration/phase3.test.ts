@@ -229,7 +229,7 @@ describe.skipIf(!POSTGREST_BIN)("Phase 3 screens' API (integration)", () => {
       "Digoxin safety:locked",
     ]);
     expect(path.nextStoneId).toBe(stoneId("Hand hygiene"));
-    expect(path.counts).toEqual({ stones: 3, mastered: 0, needsReview: 0 });
+    expect(path.counts).toEqual({ stones: 3, ready: 1, mastered: 0, needsReview: 0 });
   });
 
   it("won't open a locked stone", async () => {
@@ -325,6 +325,10 @@ describe.skipIf(!POSTGREST_BIN)("Phase 3 screens' API (integration)", () => {
     expect(view.categories).toHaveLength(8);
     expect(view.nclexReadiness).toBeGreaterThan(0);
     expect(view.path).toEqual({ stones: 3, mastered: 1 });
+    // Every answer was saved this week, so the trend's last week holds them and the earlier weeks are empty.
+    expect(view.trend).toHaveLength(8);
+    expect(view.trend.at(-1).attempts).toBeGreaterThanOrEqual(5);
+    expect(view.trend.slice(0, -1).every((w: { attempts: number; accuracy: number | null }) => w.attempts === 0 && w.accuracy === null)).toBe(true);
   });
 
   it("puts the student's own note pearls on card 4", async () => {

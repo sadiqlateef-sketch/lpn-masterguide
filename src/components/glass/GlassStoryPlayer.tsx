@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion, type PanInfo } from "framer-motion";
-import { AlertTriangle, Baby, BookOpenText, ChevronLeft, Gamepad2, Stethoscope, Volume2, VolumeX, X } from "lucide-react";
+import { AlertTriangle, Baby, BookOpenText, ChevronLeft, ChevronRight, Gamepad2, Stethoscope, Volume2, VolumeX, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { speak, speechAvailable, stopSpeaking } from "@/lib/client/native";
 import { GlassCard, type GlowColor } from "./GlassCard";
@@ -21,12 +21,61 @@ export type StoryCard = {
   interactive?: boolean;
 };
 
-const KIND_META: Record<StoryCardKind, { label: string; glow: GlowColor; bar: string; Icon: typeof Baby; tint: string }> = {
-  eli10: { label: "Explain Like I'm 10", glow: "cyan", bar: "bg-cyan-300", Icon: Baby, tint: "text-cyan-300" },
-  lpn_core: { label: "The LPN Core", glow: "blue", bar: "bg-sky-400", Icon: Stethoscope, tint: "text-sky-300" },
-  exam_alert: { label: "HESI Hint & NCLEX Alert", glow: "amber", bar: "bg-amber-300", Icon: AlertTriangle, tint: "text-amber-300" },
-  notebooklm: { label: "From Your NotebookLM", glow: "violet", bar: "bg-violet-400", Icon: BookOpenText, tint: "text-violet-300" },
-  quick_play: { label: "Quick Play", glow: "emerald", bar: "bg-emerald-400", Icon: Gamepad2, tint: "text-emerald-300" },
+// Each card type has its own accent: glow, top edge, a soft wash of color, its label chip and bullet dots.
+const KIND_META: Record<
+  StoryCardKind,
+  { label: string; glow: GlowColor; bar: string; Icon: typeof Baby; tint: string; chip: string; edge: string; wash: string }
+> = {
+  eli10: {
+    label: "Explain Like I'm 10",
+    glow: "cyan",
+    bar: "bg-cyan-300",
+    Icon: Baby,
+    tint: "text-cyan-300",
+    chip: "bg-cyan-400/15",
+    edge: "border-t-cyan-300/70",
+    wash: "bg-gradient-to-b from-cyan-400/[0.14] via-transparent to-transparent",
+  },
+  lpn_core: {
+    label: "The LPN Core",
+    glow: "blue",
+    bar: "bg-sky-400",
+    Icon: Stethoscope,
+    tint: "text-sky-300",
+    chip: "bg-sky-400/15",
+    edge: "border-t-sky-300/70",
+    wash: "bg-gradient-to-b from-sky-400/[0.14] via-transparent to-transparent",
+  },
+  exam_alert: {
+    label: "HESI Hint & NCLEX Alert",
+    glow: "amber",
+    bar: "bg-amber-300",
+    Icon: AlertTriangle,
+    tint: "text-amber-300",
+    chip: "bg-amber-300/15",
+    edge: "border-t-amber-300/70",
+    wash: "bg-gradient-to-b from-amber-300/[0.14] via-transparent to-transparent",
+  },
+  notebooklm: {
+    label: "From Your NotebookLM",
+    glow: "violet",
+    bar: "bg-violet-400",
+    Icon: BookOpenText,
+    tint: "text-violet-300",
+    chip: "bg-violet-400/15",
+    edge: "border-t-violet-300/70",
+    wash: "bg-gradient-to-b from-violet-400/[0.16] via-transparent to-transparent",
+  },
+  quick_play: {
+    label: "Quick Play",
+    glow: "emerald",
+    bar: "bg-emerald-400",
+    Icon: Gamepad2,
+    tint: "text-emerald-300",
+    chip: "bg-emerald-400/15",
+    edge: "border-t-emerald-300/70",
+    wash: "bg-gradient-to-b from-emerald-400/[0.14] via-transparent to-transparent",
+  },
 };
 
 const MAX_BULLETS = 3;
@@ -43,9 +92,13 @@ type GlassStoryPlayerProps = {
   onClose: () => void;
   onComplete?: () => void;
   initialIndex?: number;
+  // Show the "Swipe or tap the sides" hint (only for a student's first few lessons).
+  showHint?: boolean;
+  // Open as the right-hand pane of a two-pane layout instead of over the whole screen.
+  pane?: boolean;
 };
 
-export function GlassStoryPlayer({ cards, open, onClose, onComplete, initialIndex = 0 }: GlassStoryPlayerProps) {
+export function GlassStoryPlayer({ cards, open, onClose, onComplete, initialIndex = 0, showHint = true, pane = false }: GlassStoryPlayerProps) {
   const reduceMotion = useReducedMotion();
   const [index, setIndex] = useState(initialIndex);
   const [direction, setDirection] = useState<1 | -1>(1);
@@ -119,9 +172,12 @@ export function GlassStoryPlayer({ cards, open, onClose, onComplete, initialInde
       {open && card && (
         <motion.div
           role="dialog"
-          aria-modal="true"
+          aria-modal={pane ? undefined : true}
           aria-label="Lesson"
-          className="fixed inset-0 z-[60] flex flex-col bg-[#020617]/80 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-xl"
+          className={cn(
+            "fixed z-[60] flex flex-col bg-canvas/95 px-4 pb-[max(1.5rem,var(--safe-bottom))] pt-[max(1rem,var(--safe-top))] backdrop-blur-xl",
+            pane ? "inset-y-0 right-0 w-1/2 border-l border-white/10" : "inset-0",
+          )}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -188,8 +244,14 @@ export function GlassStoryPlayer({ cards, open, onClose, onComplete, initialInde
                 Back
               </GlossyButton>
             </div>
+          ) : showHint ? (
+            <p className="mx-auto mt-4 flex min-h-11 items-center gap-2 text-center text-sm font-semibold text-white/75">
+              <ChevronLeft aria-hidden className="h-4 w-4" strokeWidth={2.5} />
+              Swipe or tap the sides
+              <ChevronRight aria-hidden className="h-4 w-4" strokeWidth={2.5} />
+            </p>
           ) : (
-            <p className="mx-auto mt-4 text-center text-xs text-white/40">Swipe or tap the sides</p>
+            <div aria-hidden className="mt-4 min-h-11" />
           )}
         </motion.div>
       )}
@@ -201,9 +263,18 @@ function StoryCardView({ card }: { card: StoryCard }) {
   const meta = KIND_META[card.kind];
   const bullets = (card.bullets ?? []).slice(0, MAX_BULLETS);
 
+  // Cards size to their content. A short one gets a large, faint picture of its card type so it doesn't look empty.
   return (
-    <GlassCard glow={meta.glow} className={cn("p-7", card.interactive ? "min-h-0" : "min-h-[55dvh]")}>
-      <div className={cn("flex items-center gap-2 text-sm font-bold uppercase tracking-wide", meta.tint)}>
+    <GlassCard
+      glow={meta.glow}
+      className={cn("overflow-hidden p-7", meta.edge, meta.wash, !card.interactive && "min-h-[19rem]")}
+      decoration={
+        !card.interactive && (
+          <meta.Icon aria-hidden className={cn("pointer-events-none absolute -bottom-8 -right-8 h-48 w-48 opacity-[0.09]", meta.tint)} strokeWidth={1.5} />
+        )
+      }
+    >
+      <div className={cn("inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-bold uppercase tracking-wide", meta.tint, meta.chip)}>
         <meta.Icon aria-hidden className="h-5 w-5" strokeWidth={2.5} />
         {meta.label}
       </div>

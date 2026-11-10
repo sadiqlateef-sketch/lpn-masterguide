@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, CheckCircle2, PartyPopper, XCircle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { ArrowRight, Check, CheckCircle2, PartyPopper, X, XCircle } from "lucide-react";
 import type { BowtieAnswer, ChoiceView, CompleteResult, GradeResult, PracticeView } from "@/lib/api-types";
 import { api } from "@/lib/client/api";
 import { haptic } from "@/lib/client/native";
@@ -37,13 +38,14 @@ export const EMPTY_QUICK_PLAY: QuickPlayState = {
 
 type QuickPlayProps = {
   stoneId: string;
+  stoneTitle: string;
   items: PracticeView[];
   state: QuickPlayState;
   setState: React.Dispatch<React.SetStateAction<QuickPlayState>>;
   onDone: (result: CompleteResult) => void;
 };
 
-export function QuickPlay({ stoneId, items, state, setState, onDone }: QuickPlayProps) {
+export function QuickPlay({ stoneId, stoneTitle, items, state, setState, onDone }: QuickPlayProps) {
   const item = items[state.index];
 
   const check = async () => {
@@ -70,7 +72,7 @@ export function QuickPlay({ stoneId, items, state, setState, onDone }: QuickPlay
     }
   };
 
-  if (state.completion) return <Completion result={state.completion} onDone={() => onDone(state.completion!)} />;
+  if (state.completion) return <Completion result={state.completion} stoneTitle={stoneTitle} onDone={() => onDone(state.completion!)} />;
 
   if (!item) {
     const right = items.filter((i) => state.results[i.id]?.correct).length;
@@ -117,8 +119,9 @@ export function QuickPlay({ stoneId, items, state, setState, onDone }: QuickPlay
         animate={{
           boxShadow: result ? (result.correct ? "0 0 36px -6px rgba(52,211,153,0.7)" : "0 0 36px -6px rgba(244,63,94,0.7)") : "0 0 0 0 rgba(0,0,0,0)",
         }}
-        className="flex flex-col gap-4 rounded-3xl"
+        className="relative flex flex-col gap-4 rounded-3xl"
       >
+        <AnswerFlash result={result} />
         {item.type === "bowtie" ? (
           <BowtieItem item={item} result={result} state={state} setState={setState} />
         ) : (
@@ -261,7 +264,10 @@ function Options({ name, options, picks, correctIds, multiple, disabled, onPick 
             role={multiple ? "checkbox" : "radio"}
             aria-checked={picked}
             disabled={disabled}
-            onClick={() => onPick(option.id)}
+            onClick={() => {
+              void haptic("tap");
+              onPick(option.id);
+            }}
             whileTap={disabled || reduceMotion ? undefined : { scale: 0.97 }}
             className={cn(
               "flex min-h-14 w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left text-base leading-snug transition-colors",
@@ -277,9 +283,9 @@ function Options({ name, options, picks, correctIds, multiple, disabled, onPick 
               className={cn(
                 "flex h-7 w-7 shrink-0 items-center justify-center text-sm font-bold",
                 multiple ? "rounded-md" : "rounded-full",
-                picked ? "bg-sky-300 text-slate-950" : "bg-white/10 text-white/80",
-                graded && isCorrect && "bg-emerald-300 text-slate-950",
-                graded && !isCorrect && picked && "bg-rose-400 text-slate-950",
+                picked ? "bg-sky-300 text-on-accent" : "bg-white/10 text-white/80",
+                graded && isCorrect && "bg-emerald-300 text-on-accent",
+                graded && !isCorrect && picked && "bg-rose-400 text-on-accent",
               )}
             >
               {option.id}
@@ -306,30 +312,145 @@ function Feedback({ result }: { result: GradeResult }) {
   );
 }
 
-function Completion({ result, onDone }: { result: CompleteResult; onDone: () => void }) {
-  const fired = useRef(false);
-  useEffect(() => {
-    if (!result.mastered || fired.current) return;
-    fired.current = true;
-    void haptic("celebrate");
-    void import("canvas-confetti").then(({ default: confetti }) =>
-      confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 }, colors: ["#38bdf8", "#34d399", "#a78bfa", "#fbbf24"], disableForReducedMotion: true }),
-    );
-  }, [result.mastered]);
+// A green or red flash over the question the moment it's graded, with a big check or cross.
+// The haptic buzz fires with it (in check()).
+function AnswerFlash({ result }: { result: GradeResult | undefined }) {
+  const reduceMotion = useReducedMotion();
+  return (
+    <AnimatePresence>
+      {result && (
+        <motion.div
+          key={result.attemptId}
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute -inset-2 z-10 flex items-center justify-center rounded-3xl",
+            result.correct ? "bg-emerald-400/30" : "bg-rose-500/30",
+          )}
+          initial={{ opacity: reduceMotion ? 0 : 1 }}
+          animate={{ opacity: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.9, ease: "easeOut" }}
+        >
+          <motion.span
+            className={cn(
+              "flex h-20 w-20 items-center justify-center rounded-full text-snow shadow-2xl",
+              result.correct ? "bg-emerald-500" : "bg-rose-500",
+            )}
+            initial={{ scale: reduceMotion ? 1 : 0.4 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 500, damping: 18 }}
+          >
+            {result.correct ? <Check className="h-11 w-11" strokeWidth={3.5} /> : <X className="h-11 w-11" strokeWidth={3.5} />}
+          </motion.span>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
 
+function Completion({ result, stoneTitle, onDone }: { result: CompleteResult; stoneTitle: string; onDone: () => void }) {
+  if (result.mastered) return <MasteryCelebration result={result} stoneTitle={stoneTitle} onDone={onDone} />;
   return (
     <div className="flex flex-col items-center gap-4 text-center" role="status">
-      <PartyPopper aria-hidden className={cn("h-14 w-14", result.mastered ? "text-emerald-300" : "text-sky-300")} strokeWidth={2.5} />
-      <p className="text-2xl font-black">{result.mastered ? "Mastered!" : "Lesson done"}</p>
-      <p className="text-white/80">
-        {result.mastered
-          ? "This stone is glowing green on your path."
-          : `You scored ${Math.round(result.score * 100)}%. Hit 80% to master it. Come back and try again anytime.`}
-      </p>
+      <PartyPopper aria-hidden className="h-14 w-14 text-sky-300" strokeWidth={2.5} />
+      <p className="text-2xl font-black">Lesson done</p>
+      <p className="text-white/80">You scored {Math.round(result.score * 100)}%. Hit 80% to master it. Come back and try again anytime.</p>
       {result.unlockedStone && <p className="font-semibold text-sky-200">Next up: {result.unlockedStone.title}</p>}
       <GlossyButton variant="emerald" size="lg" onClick={onDone}>
         Back to my path
       </GlossyButton>
     </div>
+  );
+}
+
+// The big moment: a full-screen overlay where the stone turns from blue to green, with confetti from both sides.
+function MasteryCelebration({ result, stoneTitle, onDone }: { result: CompleteResult; stoneTitle: string; onDone: () => void }) {
+  const reduceMotion = useReducedMotion();
+  const fired = useRef(false);
+  const [mounted, setMounted] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    if (!mounted) return;
+    button.current?.focus();
+    if (fired.current) return;
+    fired.current = true;
+    void haptic("celebrate");
+    void import("canvas-confetti").then(({ default: confetti }) => {
+      const colors = ["#38bdf8", "#34d399", "#a78bfa", "#fbbf24"];
+      const burst = (x: number, angle: number) =>
+        confetti({ particleCount: 90, spread: 70, angle, startVelocity: 55, origin: { x, y: 0.75 }, colors, disableForReducedMotion: true, zIndex: 90 });
+      burst(0.1, 60);
+      burst(0.9, 120);
+      setTimeout(() => confetti({ particleCount: 120, spread: 120, origin: { y: 0.35 }, colors, disableForReducedMotion: true, zIndex: 90 }), 450);
+    });
+  }, [mounted]);
+
+  if (!mounted) return null;
+  return createPortal(
+    <motion.div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${stoneTitle} mastered`}
+      className="fixed inset-0 z-[80] flex flex-col items-center justify-center gap-6 bg-canvas/90 px-6 text-center backdrop-blur-xl"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+    >
+      <div className="relative flex h-44 w-44 items-center justify-center">
+        {!reduceMotion &&
+          [0, 1, 2].map((i) => (
+            <motion.span
+              key={i}
+              aria-hidden
+              className="absolute inset-0 rounded-full border-4 border-emerald-300/60"
+              initial={{ scale: 0.6, opacity: 0.9 }}
+              animate={{ scale: 1.9, opacity: 0 }}
+              transition={{ duration: 1.6, delay: 0.5 + i * 0.35, repeat: Infinity, repeatDelay: 0.4, ease: "easeOut" }}
+            />
+          ))}
+        <motion.div
+          aria-hidden
+          className="relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border border-t-snow/50 border-l-snow/30 border-b-snow/5 border-r-snow/5 text-snow"
+          initial={reduceMotion ? false : { scale: 0.7, boxShadow: "0 0 0 8px rgba(125,211,252,0.35), 0 0 40px 6px rgba(56,189,248,0.55)" }}
+          animate={{ scale: 1, boxShadow: "0 0 0 8px rgba(110,231,183,0.35), 0 0 70px 14px rgba(52,211,153,0.6)" }}
+          transition={{ duration: reduceMotion ? 0 : 0.9, ease: [0.22, 1, 0.36, 1] }}
+        >
+          {/* Blue (ready) underneath, green (mastered) fading in over it. */}
+          <span className="absolute inset-0 bg-gradient-to-b from-sky-300 to-blue-600" />
+          <motion.span
+            className="absolute inset-0 bg-gradient-to-b from-emerald-300 to-emerald-600"
+            initial={{ opacity: reduceMotion ? 1 : 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: reduceMotion ? 0 : 0.8, delay: reduceMotion ? 0 : 0.3 }}
+          />
+          <span className="pointer-events-none absolute inset-x-5 top-2 h-1/3 rounded-full bg-gradient-to-b from-snow/50 to-transparent" />
+          <motion.span
+            initial={reduceMotion ? false : { scale: 0, rotate: -30 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: "spring", stiffness: 420, damping: 14, delay: reduceMotion ? 0 : 0.55 }}
+            className="relative"
+          >
+            <Check className="h-16 w-16" strokeWidth={3.5} />
+          </motion.span>
+        </motion.div>
+      </div>
+      <motion.div
+        className="flex flex-col items-center gap-2"
+        initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: reduceMotion ? 0 : 0.7 }}
+      >
+        <p className="text-sm font-bold uppercase tracking-widest text-emerald-300">Stone mastered</p>
+        <h2 className="text-3xl font-black leading-tight">{stoneTitle}</h2>
+        <p className="text-lg text-white/80">{Math.round(result.score * 100)}% on Quick Play. It&apos;s glowing green on your path.</p>
+        {result.unlockedStone && (
+          <p className="mt-2 rounded-full bg-sky-400/15 px-4 py-2 font-semibold text-sky-200">Next up: {result.unlockedStone.title}</p>
+        )}
+      </motion.div>
+      <GlossyButton ref={button} variant="emerald" size="lg" onClick={onDone}>
+        Back to my path
+      </GlossyButton>
+    </motion.div>,
+    document.body,
   );
 }

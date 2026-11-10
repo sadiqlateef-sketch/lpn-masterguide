@@ -17,7 +17,7 @@ export type PathCourse = { id: string; name: string; books: PathBook[] };
 
 export type PathView = {
   courses: PathCourse[];
-  counts: { stones: number; mastered: number; needsReview: number };
+  counts: { stones: number; ready: number; mastered: number; needsReview: number };
   // The stone the student should open next: the first one needing review, else the first ready one.
   nextStoneId: string | null;
 };
@@ -100,7 +100,12 @@ export type ReadinessView = {
   categories: ReadinessCategory[];
   weakCategoryIds: string[];
   path: { stones: number; mastered: number };
+  // Share of questions right per week, oldest first, ending with the current week.
+  trend: TrendWeek[];
 };
+
+// weekStart is the Monday (UTC) the week starts on, as YYYY-MM-DD. accuracy is null for a week with no answers.
+export type TrendWeek = { weekStart: string; attempts: number; correct: number; accuracy: number | null };
 
 export type NoteSourceView = {
   id: string;

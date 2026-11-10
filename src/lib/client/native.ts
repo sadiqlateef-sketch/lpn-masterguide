@@ -153,10 +153,25 @@ export async function stopSpeaking(): Promise<void> {
 // Android system bars, splash screen and back button
 // ---------------------------------------------------------------------------
 
+// Canvas colors for the status bar, matching --color-canvas in globals.css for each theme.
+export const CANVAS_DARK = "#020617";
+export const CANVAS_LIGHT = "#eef2f7";
+
 export async function setupNativeChrome(): Promise<void> {
   if (!isNative()) return;
   const [{ StatusBar, Style }, { SplashScreen }] = await Promise.all([import("@capacitor/status-bar"), import("@capacitor/splash-screen")]);
-  await Promise.allSettled([StatusBar.setStyle({ style: Style.Dark }), StatusBar.setBackgroundColor({ color: "#020617" })]);
+  // The status bar follows the phone's light or dark setting, like the screens do.
+  const scheme = window.matchMedia?.("(prefers-color-scheme: light)");
+  const apply = () => {
+    const light = Boolean(scheme?.matches);
+    // Style.Dark means light icons, for a dark background.
+    void Promise.allSettled([
+      StatusBar.setStyle({ style: light ? Style.Light : Style.Dark }),
+      StatusBar.setBackgroundColor({ color: light ? CANVAS_LIGHT : CANVAS_DARK }),
+    ]);
+  };
+  apply();
+  scheme?.addEventListener("change", apply);
   await SplashScreen.hide({ fadeOutDuration: 250 }).catch(() => undefined);
 }
 

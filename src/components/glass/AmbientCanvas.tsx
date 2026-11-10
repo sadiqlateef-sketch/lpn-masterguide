@@ -26,7 +26,7 @@ export function AmbientCanvas({ children, className }: AmbientCanvasProps) {
   const reduceMotion = useReducedMotion();
 
   return (
-    <div className={cn("relative min-h-dvh overflow-hidden bg-[#020617]", className)}>
+    <div className={cn("relative min-h-dvh overflow-hidden bg-canvas", className)}>
       <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
         {ORBS.map((orb, i) => (
           <motion.div

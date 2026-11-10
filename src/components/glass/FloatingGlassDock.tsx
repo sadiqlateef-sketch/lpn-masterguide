@@ -13,6 +13,7 @@ type FloatingGlassDockProps = {
   onMagicAdd: () => void;
   className?: string;
   inert?: boolean;
+  style?: React.CSSProperties;
 };
 
 const TABS: { id: DockTab; label: string; Icon: typeof Map }[] = [
@@ -20,7 +21,7 @@ const TABS: { id: DockTab; label: string; Icon: typeof Map }[] = [
   { id: "readiness", label: "Readiness", Icon: Gauge },
 ];
 
-export function FloatingGlassDock({ active, onTabChange, onMagicAdd, className, inert }: FloatingGlassDockProps) {
+export function FloatingGlassDock({ active, onTabChange, onMagicAdd, className, inert, style }: FloatingGlassDockProps) {
   const reduceMotion = useReducedMotion();
   const [pathTab, readinessTab] = TABS;
 
@@ -32,7 +33,7 @@ export function FloatingGlassDock({ active, onTabChange, onMagicAdd, className, 
         type="button"
         onClick={() => onTabChange(id)}
         aria-current={isActive ? "page" : undefined}
-        className="relative flex min-h-14 w-20 flex-col items-center justify-center gap-1 rounded-full text-xs font-semibold focus-visible:outline-2 focus-visible:outline-sky-300"
+        className="relative flex min-h-14 min-w-20 flex-col px-3 items-center justify-center gap-1 rounded-full text-xs font-semibold focus-visible:outline-2 focus-visible:outline-sky-300"
       >
         {isActive && (
           <motion.span
@@ -51,11 +52,12 @@ export function FloatingGlassDock({ active, onTabChange, onMagicAdd, className, 
     <nav
       aria-label="Main"
       inert={inert}
+      style={style}
       className={cn(
-        "fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-50 mx-auto flex w-fit items-center gap-3 rounded-full px-3 py-2",
+        "fixed inset-x-0 bottom-[calc(1rem+var(--safe-bottom))] z-50 mx-auto flex w-fit items-center gap-3 rounded-full px-3 py-2",
         GLASS_SURFACE,
         // Darker than other glass so the page scrolling underneath never fights with the labels.
-        "bg-slate-950/90",
+        "bg-dock",
         "shadow-[0_20px_50px_-12px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.35)]",
         className,
       )}
@@ -70,13 +72,13 @@ export function FloatingGlassDock({ active, onTabChange, onMagicAdd, className, 
         transition={{ type: "spring", stiffness: 500, damping: 20 }}
         className={cn(
           "relative -my-5 flex h-16 w-16 items-center justify-center rounded-full",
-          "bg-gradient-to-br from-sky-400 via-violet-500 to-emerald-400 text-white",
-          "border border-t-white/50 border-l-white/30 border-b-white/5 border-r-white/5",
+          "bg-gradient-to-br from-sky-400 via-violet-500 to-emerald-400 text-snow",
+          "border border-t-snow/50 border-l-snow/30 border-b-snow/5 border-r-snow/5",
           "shadow-[0_10px_40px_-6px_rgba(56,189,248,0.8),inset_0_1px_2px_rgba(255,255,255,0.6)]",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300",
         )}
       >
-        <span aria-hidden className="pointer-events-none absolute inset-x-2 top-1 h-1/2 rounded-full bg-gradient-to-b from-white/45 to-transparent" />
+        <span aria-hidden className="pointer-events-none absolute inset-x-2 top-1 h-1/2 rounded-full bg-gradient-to-b from-snow/45 to-transparent" />
         <Plus aria-hidden className="relative h-8 w-8" strokeWidth={3} />
       </motion.button>
       {renderTab(readinessTab)}

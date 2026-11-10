@@ -8,13 +8,70 @@
   --color-amber-glow: #fbbf24;
   --color-violet-glow: #a78bfa;
   --color-cyan-glow: #22d3ee;
+  /* Always white, in both themes: text and sheen on colored buttons and stones. */
+  --color-snow: #ffffff;
+  /* Text on bright accent fills (picked answer letters, the amber button). */
+  --color-on-accent: #020617;
+  /* Glass surface and its specular edges. */
+  --color-glass: rgb(255 255 255 / 0.07);
+  --color-edge-t: rgb(255 255 255 / 0.25);
+  --color-edge-l: rgb(255 255 255 / 0.2);
+  --color-edge-soft: rgb(255 255 255 / 0.05);
+  --color-dock: rgb(2 6 23 / 0.9);
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+/*
+ * Light mode follows the phone's setting. The screens are written for the dark canvas with
+ * `text-white/..` ink and light accent shades, so light mode swaps those tokens instead of
+ * restyling every screen: white becomes the ink color, and the pale accent shades used for
+ * text become their deep shades so they stay readable on a light canvas.
+ */
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-canvas: #eef2f7;
+    --color-white: #0f172a;
+    --color-on-accent: #ffffff;
+    --color-glass: rgb(255 255 255 / 0.62);
+    --color-edge-t: rgb(255 255 255 / 0.9);
+    --color-edge-l: rgb(15 23 42 / 0.08);
+    --color-edge-soft: rgb(15 23 42 / 0.08);
+    --color-dock: rgb(255 255 255 / 0.88);
+
+    --color-sky-100: #0c4a6e;
+    --color-sky-200: #075985;
+    --color-sky-300: #0369a1;
+    --color-cyan-100: #155e75;
+    --color-cyan-200: #155e75;
+    --color-cyan-300: #0e7490;
+    --color-emerald-100: #065f46;
+    --color-emerald-200: #065f46;
+    --color-emerald-300: #047857;
+    --color-amber-100: #92400e;
+    --color-amber-200: #92400e;
+    --color-amber-300: #b45309;
+    --color-violet-100: #5b21b6;
+    --color-violet-200: #5b21b6;
+    --color-violet-300: #6d28d9;
+    --color-rose-100: #9f1239;
+    --color-rose-200: #9f1239;
+    --color-rose-300: #be123c;
+  }
+}
+
+:root {
+  /* The phone's bottom gesture bar. Capacitor sets --safe-area-inset-bottom on older Android WebViews. */
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+  --safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  /* Height the floating dock takes from the bottom of the screen, gesture bar included. */
+  --dock-space: calc(6.5rem + var(--safe-bottom));
+  color-scheme: dark light;
 }
 
 html,
 body {
   background: var(--color-canvas);
-  color: #f8fafc;
+  color: var(--color-white);
   min-height: 100dvh;
   -webkit-tap-highlight-color: transparent;
 }
@@ -22,6 +79,28 @@ body {
 body {
   font-family: var(--font-sans);
   overscroll-behavior: none;
+}
+
+/* Placeholder shimmer for loading cards. Turned off with the rest of the motion below. */
+@keyframes shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+
+.shimmer {
+  background-color: color-mix(in oklab, var(--color-white) 6%, transparent);
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in oklab, var(--color-white) 10%, transparent) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

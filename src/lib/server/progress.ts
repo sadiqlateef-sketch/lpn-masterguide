@@ -5,7 +5,9 @@ import type {
   ReadinessCategory,
   ReadinessView,
   StoneStatus,
+  TrendWeek,
 } from "@/lib/api-types";
+import { HESI_MIN_ATTEMPTS, PRACTICE_TARGET } from "@/lib/readiness-rules";
 import { ApiError } from "./http";
 import type { StoredLesson } from "./lessons";
 import { check, type UserContext } from "./supabase";
@@ -38,7 +40,7 @@ type BookRow = {
 const bySort = <T extends { sort_order: number }>(a: T, b: T) => a.sort_order - b.sort_order;
 
 export function buildPathView(courses: { id: string; name: string }[], books: BookRow[]): PathView {
-  const counts = { stones: 0, mastered: 0, needsReview: 0 };
+  const counts = { stones: 0, ready: 0, mastered: 0, needsReview: 0 };
   let firstReview: string | null = null;
   let firstReady: string | null = null;
 
@@ -68,7 +70,10 @@ export function buildPathView(courses: { id: string; name: string }[], books: Bo
                   counts.needsReview++;
                   firstReview ??= stone.id;
                 }
-                if (stone.status === "ready") firstReady ??= stone.id;
+                if (stone.status === "ready") {
+                  counts.ready++;
+                  firstReady ??= stone.id;
+                }
                 return { id: stone.id, title: stone.title, summary: stone.summary, status: stone.status, mastery: Number(stone.mastery) };
               }),
             })),
@@ -146,10 +151,7 @@ export async function completeStone(ctx: UserContext, stoneId: string): Promise<
 // Readiness: NCLEX-PN readiness % and a HESI score projection
 // ---------------------------------------------------------------------------
 
-// Answers per client need before that area counts fully toward readiness.
-export const PRACTICE_TARGET = 15;
-// Answers before a HESI projection means anything.
-export const HESI_MIN_ATTEMPTS = 20;
+export { HESI_MIN_ATTEMPTS, PRACTICE_TARGET };
 const WEAK_ACCURACY = 0.75;
 const WEAK_MIN_ATTEMPTS = 3;
 
@@ -172,6 +174,7 @@ export function computeReadiness(
   benchmarks: readonly Benchmark[],
   reviewStones: Map<string, ReadinessCategory["reviewStones"]>,
   path: { stones: number; mastered: number },
+  trend: TrendWeek[] = [],
 ): ReadinessView {
   const categories: ReadinessCategory[] = rows.map((r) => {
     const weightPct = (Number(r.min_pct) + Number(r.max_pct)) / 2;
@@ -220,17 +223,56 @@ export function computeReadiness(
     categories,
     weakCategoryIds,
     path,
+    trend,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Trend: share of questions right per week (weeks start Monday, UTC)
+// ---------------------------------------------------------------------------
+
+export const TREND_WEEKS = 8;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function weekStartOf(date: Date): Date {
+  const day = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const sinceMonday = (day.getUTCDay() + 6) % 7;
+  return new Date(day.getTime() - sinceMonday * DAY_MS);
+}
+
+export function weeklyTrend(attempts: readonly { is_correct: boolean; answered_at: string }[], now: Date, weeks = TREND_WEEKS): TrendWeek[] {
+  const first = weekStartOf(now).getTime() - (weeks - 1) * 7 * DAY_MS;
+  const buckets = Array.from({ length: weeks }, (_, i) => ({ start: first + i * 7 * DAY_MS, attempts: 0, correct: 0 }));
+  for (const a of attempts) {
+    const at = new Date(a.answered_at).getTime();
+    if (Number.isNaN(at) || at < first) continue;
+    const index = Math.floor((at - first) / (7 * DAY_MS));
+    const bucket = buckets[index];
+    if (!bucket) continue;
+    bucket.attempts++;
+    if (a.is_correct) bucket.correct++;
+  }
+  return buckets.map((b) => ({
+    weekStart: new Date(b.start).toISOString().slice(0, 10),
+    attempts: b.attempts,
+    correct: b.correct,
+    accuracy: b.attempts ? b.correct / b.attempts : null,
+  }));
+}
+
+export function trendSince(now: Date, weeks = TREND_WEEKS): string {
+  return new Date(weekStartOf(now).getTime() - (weeks - 1) * 7 * DAY_MS).toISOString();
 }
 
 const STATUS_PRIORITY: Record<StoneStatus, number> = { needs_review: 0, ready: 1, mastered: 2, locked: 3 };
 
-export async function loadReadiness(ctx: UserContext): Promise<ReadinessView> {
-  const [needs, benchmarks, tags, stones] = await Promise.all([
+export async function loadReadiness(ctx: UserContext, now = new Date()): Promise<ReadinessView> {
+  const [needs, benchmarks, tags, stones, recent] = await Promise.all([
     ctx.supabase.rpc("readiness_by_client_need"),
     ctx.supabase.from("hesi_score_benchmarks").select("id, min_score, max_score, label, meaning"),
     ctx.supabase.from("stone_blueprint_tags").select("stone_id, client_need_id, relevance"),
     ctx.supabase.from("stepping_stones").select("id, title, status, mastery"),
+    ctx.supabase.from("practice_attempts").select("is_correct, answered_at").gte("answered_at", trendSince(now)),
   ]);
 
   const stoneRows = check(stones, "load stones") as { id: string; title: string; status: StoneStatus; mastery: number }[];
@@ -259,5 +301,6 @@ export async function loadReadiness(ctx: UserContext): Promise<ReadinessView> {
     check(benchmarks, "load benchmarks") as Benchmark[],
     review,
     { stones: stoneRows.length, mastered: stoneRows.filter((s) => s.status === "mastered").length },
+    weeklyTrend(check(recent, "load recent answers") as { is_correct: boolean; answered_at: string }[], now),
   );
 }

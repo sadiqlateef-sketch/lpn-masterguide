@@ -17,17 +17,19 @@ export const GLOW_CLASSES: Record<GlowColor, string> = {
 };
 
 export const GLASS_SURFACE =
-  "backdrop-blur-2xl bg-white/[0.07] border border-t-white/25 border-l-white/20 border-b-white/5 border-r-white/5";
+  "backdrop-blur-2xl bg-glass border border-t-edge-t border-l-edge-l border-b-edge-soft border-r-edge-soft";
 
 const INNER_HIGHLIGHT = "shadow-[inset_0_1px_1px_rgba(255,255,255,0.35)]";
 
 type GlassCardProps = HTMLMotionProps<"div"> & {
   glow?: GlowColor;
   interactive?: boolean;
+  // Drawn behind the content, positioned against the card itself (for example a faint corner picture).
+  decoration?: React.ReactNode;
 };
 
 export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(function GlassCard(
-  { glow = "none", interactive = false, className, children, ...props },
+  { glow = "none", interactive = false, decoration, className, children, ...props },
   ref,
 ) {
   const reduceMotion = useReducedMotion();
@@ -44,10 +46,11 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(function Gla
       className={cn("relative rounded-3xl p-5 text-white", GLASS_SURFACE, GLOW_CLASSES[glow], className)}
       {...props}
     >
+      {decoration}
       <span aria-hidden className={cn("pointer-events-none absolute inset-0 rounded-[inherit]", INNER_HIGHLIGHT)} />
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent"
+        className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-snow/50 to-transparent"
       />
       <div className="relative">{children as React.ReactNode}</div>
     </motion.div>
