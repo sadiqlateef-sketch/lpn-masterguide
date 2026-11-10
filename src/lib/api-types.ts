@@ -483,3 +483,124 @@ export type MistakeView = {
   misses: number;
   note: string;
 };
+
+// ---------------------------------------------------------------------------
+// Stage 6b: skills checklists, clinical day prep, care plans and share links
+// ---------------------------------------------------------------------------
+
+export type SkillConfidence = "not_yet" | "with_help" | "on_my_own";
+
+export type SkillCheckView = {
+  id: string;
+  stepsDone: number;
+  stepsTotal: number;
+  // Step numbers (from 1) left unticked on that run.
+  missedSteps: number[];
+  confidence: SkillConfidence;
+  checkedAt: string;
+};
+
+export type SkillSummary = {
+  id: string;
+  title: string;
+  blurb: string;
+  stepCount: number;
+  runs: number;
+  lastCheck: SkillCheckView | null;
+  signedOffOn: string | null;
+};
+
+export type SkillStepView = { n: number; text: string; why: string; critical: boolean };
+
+export type SkillView = {
+  id: string;
+  title: string;
+  blurb: string;
+  steps: SkillStepView[];
+  history: SkillCheckView[];
+  signedOffOn: string | null;
+  questions: PracticeView[];
+};
+
+export type SkillRunResult = { check: SkillCheckView; missedCritical: SkillStepView[]; questions: PracticeView[] };
+
+export type ClinicalInput = {
+  title: string;
+  clinicalOn: string | null;
+  diagnoses: string[];
+  medications: string[];
+  skills: string[];
+  focus: string;
+};
+
+export type ClinicalSheet = {
+  conditions: { name: string; summary: string; watch: string[]; actions: string[]; report: string[]; fromSources: boolean }[];
+  medications: { name: string; drugClass: string; why: string; checkFirst: string[]; watch: string[]; fromSources: boolean }[];
+  skills: { name: string; points: string[] }[];
+};
+
+export type ClinicalPrepSummary = { id: string; title: string; clinicalOn: string | null; createdAt: string };
+
+export type ClinicalPrepView = ClinicalPrepSummary & {
+  input: ClinicalInput;
+  sheet: ClinicalSheet;
+  sources: SourceQuote[];
+  questions: PracticeView[];
+};
+
+export type CarePlanProblem = {
+  problem: string;
+  relatedTo: string;
+  evidence: string[];
+  goal: string;
+  interventions: { action: string; why: string }[];
+  reportToRn: string[];
+  evaluation: string;
+};
+
+export type CarePlanFeedback = {
+  verdict: string;
+  strengths: string[];
+  fixes: { where: string; issue: string; better: string }[];
+  scopeFlags: { text: string; why: string }[];
+};
+
+export type CarePlanSummary = { id: string; situation: string; problemCount: number; updatedAt: string };
+
+export type CarePlanView = {
+  id: string;
+  prepId: string | null;
+  situation: string;
+  problems: CarePlanProblem[];
+  feedback: CarePlanFeedback | null;
+  questions: PracticeView[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ShareKind = "lesson" | "questions";
+
+export type ShareLinkView = {
+  id: string;
+  token: string;
+  kind: ShareKind;
+  title: string;
+  stoneId: string | null;
+  itemCount: number;
+  createdAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
+};
+
+// What someone opening a share link sees: lesson cards with no notes or source captions, and
+// questions without their answers (each one is checked on the server, and nothing is saved).
+export type SharedDeckView = {
+  kind: ShareKind;
+  title: string;
+  createdAt: string;
+  expiresAt: string;
+  cards: { kind: LessonCardKind; title: string; body?: string; bullets?: string[] }[];
+  items: PracticeView[];
+};
+
+export type SharedGrade = Omit<GradeResult, "attemptId">;

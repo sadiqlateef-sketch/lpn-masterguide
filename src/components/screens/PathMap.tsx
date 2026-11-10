@@ -9,7 +9,10 @@ import { cn } from "@/lib/cn";
 import { connectorPath, courseChapters, courseOfStone, courseStats, findStone, neighborCourse, type Point } from "@/lib/ui/path-view";
 import { GLASS_SURFACE, GlassCard } from "@/components/glass/GlassCard";
 import { GlossyButton } from "@/components/glass/GlossyButton";
+import { ChapterTools } from "./ChapterTools";
 import { PlanView } from "./PlanView";
+
+type Props = PathMapProps;
 
 type PathMapProps = {
   path: PathView | null;
@@ -18,6 +21,7 @@ type PathMapProps = {
   onRetry: () => void;
   onOpenStone: (stone: { id: string; title: string }) => void;
   onAddBook: () => void;
+  onListen: (module: { id: string; title: string; stones: { id: string; title: string }[] }) => void;
 };
 
 const STATUS: Record<StoneStatus, { label: string; node: string; ring: string; Icon: typeof Play; glow: string; trail: string }> = {
@@ -61,7 +65,7 @@ const COURSE_KEY = "lpn:path-course";
 const VIEW_KEY = "lpn:path-view";
 const SWIPE_DISTANCE = 80;
 
-export function PathMap({ path, loading, error, onRetry, onOpenStone, onAddBook }: PathMapProps) {
+export function PathMap({ path, loading, error, onRetry, onOpenStone, onAddBook, onListen }: PathMapProps) {
   const nodeRefs = useRef(new Map<string, HTMLButtonElement>());
   const chapterRefs = useRef(new Map<string, HTMLDivElement>());
   const scrolledTo = useRef<string | null>(null);
@@ -238,6 +242,7 @@ export function PathMap({ path, loading, error, onRetry, onOpenStone, onAddBook 
                           offsets={offsets}
                           nextStoneId={path.nextStoneId}
                           onOpen={onOpenStone}
+                          onListen={onListen}
                           headerRef={(el) => {
                             if (el) chapterRefs.current.set(module.id, el);
                             else chapterRefs.current.delete(module.id);
@@ -427,11 +432,12 @@ type ChapterBlockProps = {
   offsets: number[];
   nextStoneId: string | null;
   onOpen: (stone: PathStone) => void;
+  onListen: Props["onListen"];
   headerRef: (el: HTMLDivElement | null) => void;
   nodeRef: (id: string, el: HTMLButtonElement | null) => void;
 };
 
-function ChapterBlock({ module, offsets, nextStoneId, onOpen, headerRef, nodeRef }: ChapterBlockProps) {
+function ChapterBlock({ module, offsets, nextStoneId, onOpen, onListen, headerRef, nodeRef }: ChapterBlockProps) {
   const listRef = useRef<HTMLOListElement>(null);
   const [points, setPoints] = useState<Point[]>([]);
   const locked = module.stones.filter((s) => s.status === "locked").length;
@@ -464,6 +470,7 @@ function ChapterBlock({ module, offsets, nextStoneId, onOpen, headerRef, nodeRef
         </p>
         {locked > 0 && <p className="mt-0.5 text-xs font-semibold text-white/55">{locked === module.stones.length ? `${locked} stones coming up` : `${locked} more coming up`}</p>}
       </div>
+      <ChapterTools module={module} onListen={onListen} />
       <ol ref={listRef} className="relative flex flex-col items-center gap-2 py-2">
         <svg aria-hidden className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
           {points.slice(1).map((p, i) => (

@@ -35,7 +35,7 @@ export type OrderedPayload = { stem: string; items: ChoiceView[]; correct_order:
 export const NGN_ITEM_TYPES = ["ngn_matrix", "ngn_cloze", "ngn_highlight", "ngn_ordered"] as const;
 export type NgnItemType = (typeof NGN_ITEM_TYPES)[number];
 
-export type PracticeItemType = "twin_mcq" | "sata" | "ngn_mini_bowtie" | "lesson_mcq" | "drug_mcq" | "round_mcq" | NgnItemType;
+export type PracticeItemType = "twin_mcq" | "sata" | "ngn_mini_bowtie" | "lesson_mcq" | "drug_mcq" | "round_mcq" | "skill_mcq" | "clinical_mcq" | NgnItemType;
 
 export type PracticePayload = ChoicePayload | Bowtie | MatrixPayload | ClozePayload | HighlightPayload | OrderedPayload;
 

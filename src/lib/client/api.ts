@@ -37,7 +37,22 @@ import type {
   WeeklyReportView,
   TextbookPartView,
   TextbookView,
+  CarePlanProblem,
+  CarePlanSummary,
+  CarePlanView,
+  ClinicalInput,
+  ClinicalPrepSummary,
+  ClinicalPrepView,
+  SharedDeckView,
+  SharedGrade,
+  ShareKind,
+  ShareLinkView,
+  SkillConfidence,
+  SkillRunResult,
+  SkillSummary,
+  SkillView,
 } from "@/lib/api-types";
+import { cachedLesson, cachedPath, cacheLesson, cachePath, flushOutbox, type OutboxEntry } from "./offline";
 import { ensureSession } from "./supabase";
 
 export class ClientApiError extends Error {
@@ -54,8 +69,21 @@ export class ClientApiError extends Error {
 // Empty on the web (same origin). The Android app's bundled screens call the hosted app instead.
 export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "");
 
+const OFFLINE_MESSAGE = "You seem to be offline. Check your connection and try again.";
+
+function deviceOffline(): boolean {
+  return typeof navigator !== "undefined" && navigator.onLine === false;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const session = await ensureSession();
+  let session;
+  try {
+    session = await ensureSession();
+  } catch (error) {
+    // A session that needs refreshing can't be refreshed offline: report that as offline, so saved lessons still open.
+    if (deviceOffline()) throw new ClientApiError(OFFLINE_MESSAGE, "offline", 0);
+    throw error;
+  }
   const headers = new Headers(init.headers);
   headers.set("authorization", `Bearer ${session.access_token}`);
   if (typeof init.body === "string") headers.set("content-type", "application/json");
@@ -71,6 +99,24 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new ClientApiError(body?.error?.message ?? "Something went wrong. Try again.", body?.error?.code ?? "error", response.status);
   }
   return body as T;
+}
+
+export function isOfflineError(error: unknown): boolean {
+  return error instanceof ClientApiError && error.code === "offline";
+}
+
+// Loads from the server and keeps a copy on the phone; when offline, falls back to that copy.
+async function withOfflineCopy<T>(load: () => Promise<T>, save: (value: T) => Promise<void>, saved: () => Promise<T | null>): Promise<T> {
+  try {
+    const value = await load();
+    void save(value).catch(() => undefined);
+    return value;
+  } catch (error) {
+    if (!isOfflineError(error)) throw error;
+    const copy = await saved().catch(() => null);
+    if (copy) return copy;
+    throw error;
+  }
 }
 
 export type BookResult =
@@ -90,9 +136,13 @@ export type MagicAddResponse = {
 export type BuildSyllabusResponse = BookResult & { message: string };
 
 export const api = {
-  path: () => request<PathView>("/api/path"),
+  path: () => withOfflineCopy(() => request<PathView>("/api/path"), cachePath, cachedPath),
   lesson: (stoneId: string, refresh = false) =>
-    request<LessonView>("/api/lessons/generate", { method: "POST", body: JSON.stringify({ stoneId, refresh }) }),
+    withOfflineCopy(
+      () => request<LessonView>("/api/lessons/generate", { method: "POST", body: JSON.stringify({ stoneId, refresh }) }),
+      cacheLesson,
+      () => (refresh ? Promise.resolve(null) : cachedLesson(stoneId)),
+    ),
   attempt: (body: AttemptRequest) => request<GradeResult>("/api/practice/attempt", { method: "POST", body: JSON.stringify(body) }),
   complete: (stoneId: string) => request<CompleteResult>(`/api/stones/${stoneId}/complete`, { method: "POST" }),
   readiness: () => request<ReadinessView>("/api/readiness"),
@@ -160,7 +210,64 @@ export const api = {
   saveMistakeNote: (itemId: string, note: string) => request<{ note: string }>(`/api/mistakes/${itemId}/note`, { method: "PUT", body: JSON.stringify({ note }) }),
   stoneNgn: (stoneId: string) => request<{ items: PracticeView[] }>(`/api/stones/${stoneId}/ngn`),
   moreNgn: (stoneId: string) => request<{ items: PracticeView[] }>(`/api/stones/${stoneId}/ngn`, { method: "POST" }),
+  skills: () => request<{ skills: SkillSummary[] }>("/api/skills"),
+  skill: (skillId: string) => request<SkillView>(`/api/skills/${skillId}`),
+  runSkill: (skillId: string, done: number[], confidence: SkillConfidence) =>
+    request<SkillRunResult>(`/api/skills/${skillId}/runs`, { method: "POST", body: JSON.stringify({ done, confidence }) }),
+  signOffSkill: (skillId: string, signedOffOn: string | null) =>
+    request<{ signedOffOn: string | null }>(`/api/skills/${skillId}/signoff`, { method: "PUT", body: JSON.stringify({ signedOffOn }) }),
+  clinicalPreps: () => request<{ preps: ClinicalPrepSummary[] }>("/api/clinical-preps"),
+  clinicalPrep: (prepId: string) => request<ClinicalPrepView>(`/api/clinical-preps/${prepId}`),
+  createClinicalPrep: (input: ClinicalInput) => request<ClinicalPrepView>("/api/clinical-preps", { method: "POST", body: JSON.stringify(input) }),
+  deleteClinicalPrep: (prepId: string) => request<{ ok: boolean }>(`/api/clinical-preps/${prepId}`, { method: "DELETE" }),
+  carePlans: () => request<{ plans: CarePlanSummary[] }>("/api/care-plans"),
+  carePlan: (planId: string) => request<CarePlanView>(`/api/care-plans/${planId}`),
+  createCarePlan: (situation: string, prepId: string | null) =>
+    request<CarePlanView>("/api/care-plans", { method: "POST", body: JSON.stringify({ situation, prepId }) }),
+  saveCarePlan: (planId: string, problems: CarePlanProblem[]) =>
+    request<CarePlanView>(`/api/care-plans/${planId}`, { method: "PUT", body: JSON.stringify({ problems }) }),
+  checkCarePlan: (planId: string) => request<CarePlanView>(`/api/care-plans/${planId}/check`, { method: "POST" }),
+  deleteCarePlan: (planId: string) => request<{ ok: boolean }>(`/api/care-plans/${planId}`, { method: "DELETE" }),
+  shareLinks: () => request<{ links: ShareLinkView[] }>("/api/share"),
+  createShareLink: (kind: ShareKind, stoneId: string) => request<ShareLinkView>("/api/share", { method: "POST", body: JSON.stringify({ kind, stoneId }) }),
+  revokeShareLink: (shareId: string) => request<ShareLinkView>(`/api/share/${shareId}`, { method: "DELETE" }),
 };
+
+// Sends answers and finished lessons saved while offline. Safe to call any time; returns how many went.
+export function syncOutbox(): Promise<number> {
+  return flushOutbox(async (entry: OutboxEntry) => {
+    if (entry.kind === "attempt") await api.attempt(entry.body);
+    else await api.complete(entry.stoneId);
+  }, isOfflineError);
+}
+
+// ---------------------------------------------------------------------------
+// Share links, opened by anyone: no sign-in, so these skip the session.
+// ---------------------------------------------------------------------------
+
+async function publicRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, { ...init, headers: typeof init.body === "string" ? { "content-type": "application/json" } : undefined });
+  } catch {
+    throw new ClientApiError("You seem to be offline. Check your connection and try again.", "offline", 0);
+  }
+  const body = (await response.json().catch(() => null)) as (T & Partial<ApiErrorBody>) | null;
+  if (!response.ok) throw new ClientApiError(body?.error?.message ?? "Something went wrong. Try again.", body?.error?.code ?? "error", response.status);
+  return body as T;
+}
+
+export const shared = {
+  open: (token: string) => publicRequest<SharedDeckView>(`/api/shared/${encodeURIComponent(token)}`),
+  answer: (token: string, body: AttemptRequest) =>
+    publicRequest<SharedGrade>(`/api/shared/${encodeURIComponent(token)}/answer`, { method: "POST", body: JSON.stringify(body) }),
+};
+
+// The address a share link opens at: the hosted app, also from inside the Android app.
+export function shareUrl(token: string): string {
+  const base = API_BASE || (typeof window !== "undefined" ? window.location.origin : "");
+  return `${base}/share?t=${encodeURIComponent(token)}`;
+}
 
 // Downloads a file from the API (signed in), for the deck export.
 export async function downloadFile(path: string, fallbackName: string): Promise<void> {
