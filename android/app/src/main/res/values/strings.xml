@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">LPN MasterGuide</string>
+    <string name="title_activity_main">LPN MasterGuide</string>
+    <string name="package_name">com.lpnmasterguide.app</string>
+    <string name="custom_url_scheme">com.lpnmasterguide.app</string>
+</resources>
