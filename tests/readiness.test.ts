@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPathView, computeReadiness, HESI_MIN_ATTEMPTS, projectHesi, smoothedAccuracy } from "@/lib/server/progress";
+import { buildPathView, computeReadiness, HESI_MIN_ATTEMPTS, projectHesi, smoothedAccuracy, trendSince, weekStartOf, weeklyTrend } from "@/lib/server/progress";
 
 const benchmarks = [
   { id: "excellent", min_score: 950, max_score: null, label: "Excellent", meaning: "" },
@@ -122,7 +122,47 @@ describe("path view", () => {
     expect(view.courses.map((c) => c.id)).toEqual(["fundamentals", "pharmacology"]);
     expect(view.courses[0].books[0].units.map((u) => u.title)).toEqual(["First", "Second"]);
     expect(view.courses[0].books[0].units[0].modules[0].stones.map((s) => s.id)).toEqual(["f1", "f2"]);
-    expect(view.counts).toEqual({ stones: 4, mastered: 1, needsReview: 1 });
+    expect(view.counts).toEqual({ stones: 4, ready: 1, mastered: 1, needsReview: 1 });
     expect(view.nextStoneId).toBe("p1");
+  });
+});
+
+describe("weekly trend", () => {
+  // A Wednesday.
+  const now = new Date("2026-11-11T15:00:00Z");
+
+  it("starts weeks on Monday (UTC)", () => {
+    expect(weekStartOf(now).toISOString()).toBe("2026-11-09T00:00:00.000Z");
+    expect(weekStartOf(new Date("2026-11-09T00:00:00Z")).toISOString()).toBe("2026-11-09T00:00:00.000Z");
+    expect(weekStartOf(new Date("2026-11-08T23:59:59Z")).toISOString()).toBe("2026-11-02T00:00:00.000Z");
+  });
+
+  it("buckets answers into the last 8 weeks, oldest first", () => {
+    const trend = weeklyTrend(
+      [
+        { is_correct: true, answered_at: "2026-11-10T08:00:00Z" },
+        { is_correct: false, answered_at: "2026-11-09T00:00:00Z" },
+        { is_correct: true, answered_at: "2026-11-08T23:00:00Z" },
+        { is_correct: true, answered_at: "2026-09-21T10:00:00Z" },
+        // Older than 8 weeks: left out.
+        { is_correct: false, answered_at: "2026-09-20T10:00:00Z" },
+      ],
+      now,
+    );
+    expect(trend).toHaveLength(8);
+    expect(trend[0]).toEqual({ weekStart: "2026-09-21", attempts: 1, correct: 1, accuracy: 1 });
+    expect(trend[6]).toEqual({ weekStart: "2026-11-02", attempts: 1, correct: 1, accuracy: 1 });
+    expect(trend[7]).toEqual({ weekStart: "2026-11-09", attempts: 2, correct: 1, accuracy: 0.5 });
+    expect(trend.slice(1, 6).every((w) => w.attempts === 0 && w.accuracy === null)).toBe(true);
+  });
+
+  it("asks the database only for the weeks it shows", () => {
+    expect(trendSince(now)).toBe("2026-09-21T00:00:00.000Z");
+  });
+
+  it("is attached to the readiness view", () => {
+    const trend = weeklyTrend([], now);
+    const view = computeReadiness([need("pharm", 10, 16, 0, 0)], benchmarks, new Map(), { stones: 0, mastered: 0 }, trend);
+    expect(view.trend).toBe(trend);
   });
 });

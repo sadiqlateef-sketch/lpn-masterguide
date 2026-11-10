@@ -18,6 +18,8 @@ Build one phase at a time and stop for the owner's approval after each.
 3. Screens (`PathMap`, `MagicAddSheet`, `ReadinessRings`) and the lesson generator (`/api/lessons/generate`). (done)
 4. Capacitor Android config, camera, TTS, APK build scripts. (done)
 
+The next update is planned in `docs/ROADMAP.md` as six stages, each on its own branch with the owner's approval before merge. Stage 1 (the roadmap) and stage 2 (the 20 UI fixes) are on `claude/ui-polish`.
+
 ## Working style
 
 The owner wants speed and thoroughness over saving tokens: build complete features, test them properly, and use the strongest approach rather than the cheapest.
@@ -90,9 +92,13 @@ Every lesson, question and rationale must stay inside LPN/LVN scope of practice:
 
 ## Design tokens
 
-- Canvas: `#020617` with blurred aurora orbs (`AmbientCanvas`).
-- Glass surface: `backdrop-blur-2xl bg-white/[0.07]`, specular borders `border-t-white/25 border-l-white/20 border-b-white/5 border-r-white/5`, inner highlight `shadow-[inset_0_1px_1px_rgba(255,255,255,0.35)]`.
-- Reuse the primitives in `src/components/glass/`; don't restyle glass ad hoc in screens.
+- Canvas: `bg-canvas` (`#020617` dark, `#eef2f7` light) with blurred aurora orbs (`AmbientCanvas`). Never hard-code the canvas hex in a screen.
+- Glass surface: `GLASS_SURFACE` in `GlassCard.tsx` (`backdrop-blur-2xl bg-glass` with specular borders `border-t-edge-t border-l-edge-l border-b-edge-soft border-r-edge-soft`), inner highlight `shadow-[inset_0_1px_1px_rgba(255,255,255,0.35)]`.
+- Light mode follows the phone. `globals.css` remaps tokens under `prefers-color-scheme: light`: `white` becomes the ink color and the pale accent shades (100 to 300) become deep ones, so screens keep writing `text-white/..` and `text-sky-300`. Use `snow` for anything that must stay white in both themes (text and sheen on colored buttons and stones), `on-accent` for text on bright accent fills, and `dock` for the dock and dropdowns.
+- Bottom spacing: `--safe-bottom` (gesture bar, from `env()` or Capacitor's `--safe-area-inset-bottom`), `--safe-top`, and `--dock-space` (the room the dock takes). Pad scrolling screens with `--dock-space`; `AppShell` draws a canvas fade under the dock.
+- Wide screens (`TWO_PANE_QUERY`, 700px and up, e.g. the Fold opened): the lesson opens as a right-hand pane beside the path instead of covering it.
+- Loading states use the `.shimmer` class; first-run screens show one clear action instead of zeros.
+- Reuse the primitives in `src/components/glass/`; don't restyle glass ad hoc in screens. Pure layout and chart math lives in `src/lib/ui/` with unit tests.
 
 ## Code rules
 

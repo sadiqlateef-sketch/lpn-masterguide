@@ -60,6 +60,12 @@ A study app for LPN/LVN students, from day one to passing the NCLEX-PN and the H
 - Build scripts: `npm run android:apk` (debug), `android:release` and `android:bundle` (signed, for sharing or the Play Store), and `android:keystore`. The build stops if a secret key ever ends up in the app.
 - 112 tests passing at that point.
 
+### Next update, stages 1 and 2 (2026-11-10, branch `claude/ui-polish`, awaiting approval)
+
+- `docs/ROADMAP.md` plans the next update in six stages: the 40 ideas plus multiple NotebookLM notebooks, whole textbooks and a course plan that deepens with each source, a study-time planner, Anki import with fact-check flags, learning games, and NCLEX-style questions closing every section.
+- Stage 2 fixed the 20 UI items: dock and bottom spacing on gesture-bar phones, light mode, course tabs with swipe and a remembered choice, Continue button and chapter jump list, a drawn trail between stones, clearer locked stones, Ready count, a weekly trend chart and tap-to-explain rings on Readiness, first-run screens, shimmer loading, colored story cards, a fading swipe hint, answer flashes, a bigger mastery celebration, the Fold's side-by-side lesson pane, and the phone's text size in the app.
+- Before and after screenshots are in `docs/ui-polish/`. No database change.
+
 ## Going live (2026-10-19 to 2026-11-10)
 
 1. **First APK (2026-10-19).** Built in a cloud environment that allows Google's Android download servers. Gradle compiled it fine, but there were no Supabase keys or hosted address yet, so that build only showed "This copy of the app isn't connected yet". It has since been deleted.

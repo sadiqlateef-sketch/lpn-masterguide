@@ -8,6 +8,8 @@ import { GlossyButton } from "@/components/glass/GlossyButton";
 import type { PathView } from "@/lib/api-types";
 import { api } from "@/lib/client/api";
 import { onBackButton, setupNativeChrome } from "@/lib/client/native";
+import { TWO_PANE_QUERY, useMediaQuery } from "@/lib/client/use-media-query";
+import { cn } from "@/lib/cn";
 import { ensureSession, isConfigured } from "@/lib/client/supabase";
 import { LessonPlayer } from "./screens/LessonPlayer";
 import { MagicAddSheet, type MagicMode } from "./screens/MagicAddSheet";
@@ -88,12 +90,25 @@ export function AppShell() {
     refreshProgress();
   }, [refreshProgress]);
 
-  // While a lesson or the Magic + sheet is open, the page behind it can't be tapped or reached by screen readers.
-  const covered = magic.open || lessonStone !== null;
+  // On a wide screen (an unfolded Fold, a tablet) the lesson opens beside the path instead of over it.
+  const wide = useMediaQuery(TWO_PANE_QUERY);
+  const twoPane = wide && lessonStone !== null;
+
+  // While a full-screen lesson or the Magic + sheet is open, the page behind it can't be tapped or reached by screen readers.
+  const covered = magic.open || (lessonStone !== null && !wide);
+  const hasPath = (path?.courses.length ?? 0) > 0;
 
   return (
     <AmbientCanvas>
-      <main inert={covered} className="mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-4 pb-40 pt-[max(2.5rem,env(safe-area-inset-top))]">
+      <main
+        inert={covered}
+        className={cn(
+          "mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-4 pt-[max(2.5rem,var(--safe-top))]",
+          // Room for the floating dock and the phone's gesture bar, so the last card always scrolls clear of both.
+          "pb-[calc(var(--dock-space)+2.5rem)]",
+          twoPane && "mx-0 w-1/2 max-w-none px-6",
+        )}
+      >
         <header>
           <p className="text-sm font-semibold uppercase tracking-widest text-sky-300">LPN MasterGuide</p>
           <h1 className="mt-1 text-3xl font-bold text-white">{tab === "path" ? "Your Path" : "Readiness"}</h1>
@@ -124,11 +139,31 @@ export function AppShell() {
               onAddBook={() => setMagic({ open: true, mode: "book" })}
             />
           ) : (
-            boot.state === "ready" && <ReadinessRings refreshKey={progressKey} onOpenStone={setLessonStone} />
+            boot.state === "ready" && (
+              <ReadinessRings
+                refreshKey={progressKey}
+                hasPath={hasPath}
+                onOpenStone={setLessonStone}
+                onGoToPath={() => setTab("path")}
+                onAddBook={() => setMagic({ open: true, mode: "book" })}
+              />
+            )
           ))}
       </main>
 
-      <FloatingGlassDock inert={covered} active={tab} onTabChange={setTab} onMagicAdd={() => setMagic({ open: true, mode: "home" })} />
+      {/* Fades the page out under the dock, so nothing peeks out between the dock and the screen edge. */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed bottom-0 left-0 z-40 h-[calc(var(--dock-space)+1.5rem)] bg-gradient-to-t from-canvas from-35% via-canvas/80 to-transparent"
+        style={{ right: twoPane ? "50%" : 0 }}
+      />
+      <FloatingGlassDock
+        inert={covered}
+        active={tab}
+        onTabChange={setTab}
+        onMagicAdd={() => setMagic({ open: true, mode: "home" })}
+        style={twoPane ? { right: "50%" } : undefined}
+      />
       <MagicAddSheet
         open={magic.open}
         initialMode={magic.mode}
@@ -136,7 +171,7 @@ export function AppShell() {
         onAdded={refreshProgress}
         onAccountChanged={refreshProgress}
       />
-      <LessonPlayer stone={lessonStone} onClose={closeLesson} onFinished={finishLesson} />
+      <LessonPlayer stone={lessonStone} pane={wide} onClose={closeLesson} onFinished={finishLesson} />
     </AmbientCanvas>
   );
 }

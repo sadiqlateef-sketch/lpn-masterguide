@@ -206,7 +206,7 @@ function Step({ n, done = false }: { n: number; done?: boolean }) {
       aria-hidden
       className={cn(
         "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-bold",
-        done ? "bg-emerald-400 text-slate-950" : "bg-violet-400/25 text-violet-100",
+        done ? "bg-emerald-400 text-on-accent" : "bg-violet-400/25 text-violet-100",
       )}
     >
       {done ? <Check className="h-4 w-4" strokeWidth={3} /> : n}
