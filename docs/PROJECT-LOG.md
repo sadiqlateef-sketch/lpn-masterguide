@@ -1,6 +1,6 @@
 # LPN MasterGuide: project log
 
-Everything done on the app so far, in order, and where things stand today. Last updated 2026-11-10.
+Everything done on the app so far, in order, and where things stand today. Last updated 2026-11-10 (after stage 6b).
 
 ## Where things live
 
@@ -99,14 +99,23 @@ A study app for LPN/LVN students, from day one to passing the NCLEX-PN and the H
 - Readiness now counts game rounds and questions that aren't tied to a stone.
 - Migration `008_games_and_practice.sql` was applied to the live database on 2026-11-10 before the merge; the security advisors showed nothing new.
 
-### Next update, stage 6b (2026-11-10, branch `claude/remaining-features`, awaiting approval)
+### Next update, stage 6b (2026-11-10, merged and live)
 
 - Practice moves under the readiness rings, so the dock is back to three buttons.
 - Save a chapter offline, and listen to a chapter as an audio playlist ending in questions.
 - Skills checklists with critical steps, runs and sign-off dates.
 - Clinical day prep sheets and an LPN-scope care plan builder with a check, both refusing client identifiers.
 - Read-only share links for a stone's lesson or questions, with no personal notes, for 30 days.
-- Needs migration `009_clinical_and_sharing.sql` on the live database before the merge. It is written and tested on a scratch database, not applied.
+- Migration `009_clinical_and_sharing.sql` was applied to the live database on 2026-11-10 before the merge. The security advisor's one new note, that `shared_deck` can be called without signing in, is intended: it's how a classmate opens a share link, and it returns only the one live copy whose random token matches.
+
+### The next update in one view (stages 1 to 6, all merged and live on 2026-11-10)
+
+1. **Roadmap** (`docs/ROADMAP.md`) for the 40 ideas and the owner's extra asks.
+2. **UI fixes:** the 20 design items (pull request 1).
+3. **Sources:** several NotebookLM notebooks, whole textbooks, and a course plan that deepens with each source (pull request 2, migration 005).
+4. **Planner:** study times for each path and spaced review (pull request 3, migration 006).
+5. **Anki:** import, fact-check flags he accepts himself, suggested cards and export (pull request 4, migration 007).
+6. **Games and the rest:** seven games, practice exams, NGN types, drug cards and the mistake notebook (6a, pull request 5, migration 008), then offline chapters, audio, skills checklists, clinical prep, care plans and share links (6b, pull request 6, migration 009). Every learning section ends with NCLEX-style questions.
 
 ## Going live (2026-10-19 to 2026-11-10)
 
@@ -147,14 +156,15 @@ Push to `main` on GitHub and Vercel redeploys on its own. A database change goes
 
 ## Open items
 
-- **Migration 009:** apply `009_clinical_and_sharing.sql` to the live Supabase project before stage 6b goes live.
-- **Android app:** one APK rebuild after stage 6b merges brings stages 6a and 6b to the phone; the web app updates on deploy.
-- **Question writers not tried live yet:** the stage 6 games, drug cards, NGN sets, clinical prep and care plans haven't had a live generation run from a cloud session. Try one of each on the web app after the merge.
+- **Android app:** the phone still runs the build from before this update. One connected debug rebuild from `main` brings stages 2 to 6 to the Fold (see "How to rebuild the Android app"). The cloud session that merged stage 6b couldn't reach Google's Android download server, so the build needs the "Android build" environment or a computer with the Android SDK.
+- **Question writers not tried live yet:** the stage 6 games, drug cards, NGN sets, clinical prep and care plans haven't had a live generation run from a cloud session. Try one of each on the web app.
+- **Share links on the phone:** sharing uses the phone's share sheet when it has one and copies the link otherwise; not yet tried in the Android app.
 - **Review model for Anki checks:** optional `ANTHROPIC_REVIEW_MODEL` in Vercel. Until it's set, unsure cards get a second look from the everyday model.
 - **Anki files not yet tried on the live app:** the import is tested with decks built in code, not a real deck exported from Anki, and the export hasn't been opened in Anki yet.
 - **Phone reminders:** need the `@capacitor/local-notifications` plugin. The owner didn't pick it when stage 4 merged, so it isn't added.
 - **Note uploads over 4.5 MB:** Vercel caps a request body at about 4.5 MB, so a large PDF note sent through Magic + or the sync script may fail even though the app allows 25 MB. Textbook PDFs avoid this by going straight to Storage; notes could do the same later.
 
+- **AI keys:** if the Anthropic and Voyage keys from the screenshot haven't been replaced yet, make new ones and update them in Vercel (see "Going live", step 5).
 - **Signed release build:** not made yet. It's needed before sharing the app or publishing to Google Play.
 - **Test accounts:** a few empty guest accounts from testing sit in Supabase Authentication, plus one with a sample digoxin note. They're harmless and can be deleted under Authentication > Users.
 - **Phone testing:** Claude checked the install and launch on the phone; everything after that has only been tested by using the app. Report anything that looks wrong.
